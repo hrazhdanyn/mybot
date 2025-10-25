@@ -144,81 +144,171 @@ async function verifyCurrentPair(expectedPair) {
 }
 
 async function setTimeframe(timeframe) {
-  const minutes = parseInt(timeframe.replace(/[MS]/g, ''));
-  await addLog(`   Потрібен: ${minutes} хвилин`, 'info');
-  
-  // МЕТОД 1: Спочатку шукаємо швидкі кнопки (S5, M1, M5 тощо)
+  // Парсимо таймфрейм (може бути M1, M5, M30, H1, 1M, 5M, 30M, 1H тощо)
+  let hours = 0;
+  let minutes = 0;
+  let seconds = 0;
+
+  const tfUpper = timeframe.toUpperCase().trim();
+
+  // Визначаємо години/хвилини/секунди
+  if (tfUpper.includes('H')) {
+    hours = parseInt(tfUpper.replace(/[^0-9]/g, ''));
+    await addLog(`   Потрібен: ${hours} годин`, 'info');
+  } else if (tfUpper.includes('M')) {
+    minutes = parseInt(tfUpper.replace(/[^0-9]/g, ''));
+    await addLog(`   Потрібен: ${minutes} хвилин`, 'info');
+  } else if (tfUpper.includes('S')) {
+    seconds = parseInt(tfUpper.replace(/[^0-9]/g, ''));
+    await addLog(`   Потрібен: ${seconds} секунд`, 'info');
+  } else {
+    // Якщо тільки число - вважаємо хвилинами
+    minutes = parseInt(tfUpper);
+    await addLog(`   Потрібен: ${minutes} хвилин`, 'info');
+  }
+
+  // МЕТОД 1: Спочатку шукаємо швидкі кнопки
   const quickButtons = document.querySelectorAll('.dops__timeframes-item');
-  
+
   for (const btn of quickButtons) {
-    const text = btn.textContent.trim();
-    
-    // ТІЛЬКИ M (хвилини), НЕ S (секунди)
-    if (text === `M${minutes}`) {
-      await addLog(`   ✅ Клік на M${minutes}`, 'success');
+    const text = btn.textContent.trim().toUpperCase();
+
+    // Перевіряємо чи співпадає
+    if (text === tfUpper || text === `M${minutes}` || text === `H${hours}` || text === `S${seconds}`) {
+      await addLog(`   ✅ Клік на швидку кнопку: ${text}`, 'success');
       btn.click();
       await wait(500);
       return true;
     }
   }
-  
-  // МЕТОД 2: Якщо немає швидкої кнопки - використовуємо детальний вибір
-  await addLog(`   M${minutes} не знайдено, використовую детальний вибір`, 'info');
-  
-  // Клікаємо на value__val (показує поточний час типу "00:05:00")
-  const valueVal = document.querySelector('.value__val');
-  
+
+  // МЕТОД 2: Детальне налаштування через модальне вікно
+  await addLog(`   Швидка кнопка не знайдена, використовую детальний вибір`, 'info');
+
+  // Клікаємо на value__val (показує поточний час)
+  const valueVals = document.querySelectorAll('.value__val');
+  let valueVal = null;
+
+  // Шукаємо value__val який показує час в форматі HH:MM:SS
+  for (const val of valueVals) {
+    if (val.textContent.match(/\d{2}:\d{2}:\d{2}/)) {
+      valueVal = val;
+      break;
+    }
+  }
+
   if (!valueVal) {
     await addLog(`   ❌ value__val не знайдено`, 'error');
     return false;
   }
-  
+
   await addLog(`   Клік на value__val: ${valueVal.textContent}`, 'info');
   valueVal.click();
-  await wait(800);
-  
-  // Тепер відкрилось вікно з вибором
-  // Перевіряємо чи є перемикач (checkbox для Auto Time Offset)
-  const checkbox = document.querySelector('input.mdl-switch__input[type="checkbox"]');
-  
-  if (checkbox && checkbox.checked) {
-    // Вимикаємо Auto Time, щоб можна було вручну встановити
-    await addLog(`   Вимикаю Auto Time Offset`, 'info');
-    checkbox.click();
-    await wait(500);
+  await wait(1000);
+
+  // Перевіряємо чи відкрилось модальне вікно
+  const modal = document.querySelector('.trading-panel-modal__wrap');
+  if (!modal) {
+    await addLog(`   ❌ Модальне вікно не відкрилось`, 'error');
+    return false;
   }
-  
+
+  await addLog(`   ✅ Модальне вікно відкрито`, 'success');
+
+  // Знаходимо перемикач Auto Time Offset
+  const checkboxes = modal.querySelectorAll('input.mdl-switch__input[type="checkbox"]');
+
+  for (const checkbox of checkboxes) {
+    if (checkbox.checked) {
+      await addLog(`   Вимикаю Auto Time Offset`, 'info');
+      checkbox.click();
+      await wait(500);
+      break;
+    }
+  }
+
   // Знаходимо input поля для годин, хвилин, секунд
-  const timeInputs = document.querySelectorAll('input[type="text"]');
-  
+  const allInputs = modal.querySelectorAll('input[type="text"]');
+
+  // Фільтруємо тільки видимі поля які приймають числа
+  const timeInputs = [];
+  for (const input of allInputs) {
+    const rect = input.getBoundingClientRect();
+    const styles = window.getComputedStyle(input);
+
+    // Перевіряємо чи input видимий та має нормальну ширину
+    if (styles.display !== 'none' && rect.width > 20 && rect.width < 100) {
+      timeInputs.push(input);
+    }
+  }
+
+  await addLog(`   Знайдено ${timeInputs.length} input полів для часу`, 'info');
+
   if (timeInputs.length >= 3) {
     // Зазвичай порядок: години, хвилини, секунди
     const hoursInput = timeInputs[0];
     const minutesInput = timeInputs[1];
     const secondsInput = timeInputs[2];
-    
-    await addLog(`   Встановлюю: 00:${String(minutes).padStart(2, '0')}:00`, 'info');
-    
-    // Години = 0
-    await setInputValue(hoursInput, '0');
+
+    const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    await addLog(`   Встановлюю: ${timeStr}`, 'info');
+
+    // Встановлюємо години
+    await setInputValue(hoursInput, String(hours));
     await wait(200);
-    
-    // Хвилини = потрібне значення
+
+    // Встановлюємо хвилини
     await setInputValue(minutesInput, String(minutes));
     await wait(200);
-    
-    // Секунди = 0
-    await setInputValue(secondsInput, '0');
-    await wait(300);
-    
-    // Закриваємо модальне вікно (клік поза ним або ESC)
+
+    // Встановлюємо секунди
+    await setInputValue(secondsInput, String(seconds));
+    await wait(500);
+
+    // Закриваємо модальне вікно - клік поза ним
+    const backdrop = document.querySelector('.modal-backdrop, .overlay');
+    if (backdrop) {
+      backdrop.click();
+    } else {
+      // Якщо немає backdrop - клікаємо на body
+      const rect = modal.getBoundingClientRect();
+      const x = rect.left - 10;
+      const y = rect.top + rect.height / 2;
+
+      const elementAtPoint = document.elementFromPoint(x, y);
+      if (elementAtPoint) {
+        elementAtPoint.click();
+      }
+    }
+
+    await wait(500);
+
+    await addLog(`   ✅ Таймфрейм встановлено: ${timeStr}`, 'success');
+    return true;
+  } else if (timeInputs.length > 0) {
+    // Якщо знайшли менше 3 полів - спробуємо працювати з тим що є
+    await addLog(`   ⚠️ Знайдено менше 3 полів, спроба встановити...`, 'warning');
+
+    if (timeInputs.length >= 1 && hours > 0) {
+      await setInputValue(timeInputs[0], String(hours));
+      await wait(200);
+    }
+    if (timeInputs.length >= 2 && minutes > 0) {
+      await setInputValue(timeInputs[1], String(minutes));
+      await wait(200);
+    }
+    if (timeInputs.length >= 3 && seconds > 0) {
+      await setInputValue(timeInputs[2], String(seconds));
+      await wait(200);
+    }
+
+    // Закриваємо модальне вікно
     document.body.click();
     await wait(500);
-    
-    await addLog(`   ✅ Таймфрейм встановлено`, 'success');
+
     return true;
   }
-  
+
   await addLog(`   ⚠️ Не вдалося встановити таймфрейм`, 'warning');
   return false;
 }

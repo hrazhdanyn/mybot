@@ -158,19 +158,43 @@ async function findAndCheckInClosed(tradeInfo) {
       const upperText = text.toUpperCase();
       const direction = tradeInfo.direction.toUpperCase();
       
-      // КРОК 4: Перевірка результату
-      const priceUp = nextElement.querySelector('.price-up, .centered.price-up, [class*="price-up"]');
-      const priceDown = nextElement.querySelector('.price-down, .centered.price-down, [class*="price-down"]');
-      
+      // КРОК 4: Перевірка результату - шукаємо .centered
+      // Виграш показується у class="centered" зеленим кольором
+      // Програш показується у class="centered" червоним кольором
+      const centeredElements = nextElement.querySelectorAll('.centered');
+
+      for (const centered of centeredElements) {
+        const text = centered.textContent.trim();
+        const color = window.getComputedStyle(centered).color;
+
+        // Перевіряємо колір або текст
+        // Зелений колір (rgb(0, 255, 136) або подібний) = виграш
+        // Червоний колір (rgb(255, 68, 68) або подібний) = програш
+
+        if (text.includes('+') || color.includes('0, 255') || color.includes('green')) {
+          await addLog(`   ✅ ВИГРАШ: ${text}`, 'success');
+          return true;
+        }
+
+        if (text.includes('-') || color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
+          await addLog(`   ❌ ПРОГРАШ: ${text}`, 'error');
+          return false;
+        }
+      }
+
+      // Якщо не знайшли через .centered - пробуємо старий метод
+      const priceUp = nextElement.querySelector('.price-up, [class*="price-up"]');
+      const priceDown = nextElement.querySelector('.price-down, [class*="price-down"]');
+
       if (priceUp) {
         const amount = priceUp.textContent.trim();
-        await addLog(`   price-up: ${amount}`, 'success');
+        await addLog(`   ✅ price-up: ${amount}`, 'success');
         return true;
       }
-      
+
       if (priceDown) {
         const amount = priceDown.textContent.trim();
-        await addLog(`   price-down: ${amount}`, 'error');
+        await addLog(`   ❌ price-down: ${amount}`, 'error');
         return false;
       }
       
@@ -187,23 +211,42 @@ async function findAndCheckInClosed(tradeInfo) {
   for (let i = allDeals.length - 1; i >= Math.max(0, allDeals.length - 10); i--) {
     const deal = allDeals[i];
     const text = deal.textContent;
-    
+
     if (text.includes(cleanPair)) {
       // Перевірка часу
       if (tradeInfo.closeTime && !text.includes(tradeInfo.closeTime)) {
         continue;
       }
-      
-      const priceUp = deal.querySelector('.price-up, .centered.price-up');
-      const priceDown = deal.querySelector('.price-down, .centered.price-down');
-      
+
+      // Шукаємо .centered елементи
+      const centeredElements = deal.querySelectorAll('.centered');
+
+      for (const centered of centeredElements) {
+        const centeredText = centered.textContent.trim();
+        const color = window.getComputedStyle(centered).color;
+
+        if (centeredText.includes('+') || color.includes('0, 255') || color.includes('green')) {
+          await addLog(`   [${i}] ✅ ВИГРАШ`, 'success');
+          return true;
+        }
+
+        if (centeredText.includes('-') || color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
+          await addLog(`   [${i}] ❌ ПРОГРАШ`, 'error');
+          return false;
+        }
+      }
+
+      // Fallback до старого методу
+      const priceUp = deal.querySelector('.price-up, [class*="price-up"]');
+      const priceDown = deal.querySelector('.price-down, [class*="price-down"]');
+
       if (priceUp) {
-        await addLog(`   [${i}] ВИГРАШ`, 'success');
+        await addLog(`   [${i}] ✅ ВИГРАШ`, 'success');
         return true;
       }
-      
+
       if (priceDown) {
-        await addLog(`   [${i}] ПРОГРАШ`, 'error');
+        await addLog(`   [${i}] ❌ ПРОГРАШ`, 'error');
         return false;
       }
     }
@@ -278,20 +321,45 @@ async function fetchClosedTradesFromSite() {
           direction = 'PUT';
         }
 
-        // Визначаємо результат (виграш/програш)
-        const priceUp = item.querySelector('.price-up, .centered.price-up, [class*="price-up"]');
-        const priceDown = item.querySelector('.price-down, .centered.price-down, [class*="price-down"]');
+        // Визначаємо результат (виграш/програш) через .centered
+        const centeredElements = item.querySelectorAll('.centered');
 
         let status = 'unknown';
         let profit = 0;
 
-        if (priceUp) {
-          status = 'win';
-          const profitText = priceUp.textContent.trim().replace(/[^\d.-]/g, '');
-          profit = parseFloat(profitText) || (amount * 0.92);
-        } else if (priceDown) {
-          status = 'loss';
-          profit = -amount;
+        for (const centered of centeredElements) {
+          const centeredText = centered.textContent.trim();
+          const color = window.getComputedStyle(centered).color;
+
+          // Виграш - зелений колір або +
+          if (centeredText.includes('+') || color.includes('0, 255') || color.includes('green')) {
+            status = 'win';
+            const profitText = centeredText.replace(/[^\d.-]/g, '');
+            profit = parseFloat(profitText) || (amount * 0.92);
+            break;
+          }
+
+          // Програш - червоний колір або -
+          if (centeredText.includes('-') || color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
+            status = 'loss';
+            profit = -amount;
+            break;
+          }
+        }
+
+        // Fallback до старого методу якщо не знайшли через .centered
+        if (status === 'unknown') {
+          const priceUp = item.querySelector('.price-up, [class*="price-up"]');
+          const priceDown = item.querySelector('.price-down, [class*="price-down"]');
+
+          if (priceUp) {
+            status = 'win';
+            const profitText = priceUp.textContent.trim().replace(/[^\d.-]/g, '');
+            profit = parseFloat(profitText) || (amount * 0.92);
+          } else if (priceDown) {
+            status = 'loss';
+            profit = -amount;
+          }
         }
 
         // Додаємо угоду
