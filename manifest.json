@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "PocketOption Trading Bot",
+  "version": "2.0.0",
+  "description": "Автоматична торгівля на PocketOption з мартингейлом",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://pocketoption.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://pocketoption.com/*"],
+      "js": ["content.js", "content-trade.js", "content-monitor.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
