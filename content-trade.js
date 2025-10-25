@@ -4,13 +4,13 @@ async function openTrade(trade) {
   await addLog(`═══════════════════════════════════`, 'info');
   await addLog(`🎯 ${trade.pair} ${trade.direction} ${trade.amount}${trade.stakeType === 'percent' ? '%' : '₴'}`, 'success');
   await addLog(`═══════════════════════════════════`, 'info');
-  
+
   try {
     // КРОК 0: Тип ставки
     await addLog(`📍 КРОК 0: Тип ставки`, 'info');
     await checkAndSetStakeType(trade.stakeType);
     await wait(1000);
-    
+
     // КРОК 1: Пара
     await addLog(`📍 КРОК 1: Пара ${trade.pair}`, 'info');
     const pairOk = await selectAsset(trade.pair);

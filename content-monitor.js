@@ -2,73 +2,133 @@
 
 function startTradeMonitoring(trade) {
   if (tradeMonitorInterval) clearInterval(tradeMonitorInterval);
-  
+
   let checks = 0;
+  let phase = 'waiting'; // waiting, checking_opened, checking_closed
   let tradeInfo = {
     pair: trade.pair,
     direction: trade.direction,
     amount: trade.amount,
-    openTime: null,
+    timeframe: trade.timeframe,
+    openTime: Date.now(),
     closeTime: null,
+    expectedCloseTime: null,
     found: false
   };
-  
-  addLog(`👀 Моніторинг: ${trade.pair} ${trade.direction}`, 'info');
-  
+
+  // Розраховуємо очікуваний час закриття
+  const timeframeMinutes = parseTimeframe(trade.timeframe);
+  tradeInfo.expectedCloseTime = Date.now() + (timeframeMinutes * 60 * 1000);
+
+  addLog(`👀 Моніторинг: ${trade.pair} ${trade.direction} ${trade.timeframe}`, 'info');
+  addLog(`⏱️ Очікуваний час завершення: ${new Date(tradeInfo.expectedCloseTime).toLocaleTimeString('uk-UA')}`, 'info');
+
   tradeMonitorInterval = setInterval(async () => {
     checks++;
-    
-    if (!tradeInfo.found) {
-      // ФАЗА 1: Шукаємо в Opened і запам'ятовуємо час
-      await addLog(`   [${checks}] Пошук в Opened...`, 'info');
-      
-      const found = await findAndTrackInOpened(tradeInfo);
-      
-      if (found) {
-        tradeInfo = found;
-        tradeInfo.found = true;
-        
-        await addLog(`✅ Знайдено в Opened!`, 'success');
-        await addLog(`   Відкриття: ${tradeInfo.openTime}`, 'info');
-        await addLog(`   Закриття: ${tradeInfo.closeTime}`, 'info');
-        await addLog(`⏳ Очікую завершення...`, 'warning');
+    const now = Date.now();
+    const timeLeft = Math.round((tradeInfo.expectedCloseTime - now) / 1000);
+
+    if (phase === 'waiting') {
+      // ФАЗА 1: Очікуємо закінчення таймфрейму
+      if (timeLeft > 10) {
+        if (checks % 10 === 0) { // Логуємо кожні 30 сек
+          await addLog(`⏳ Очікування ${Math.round(timeLeft / 60)} хв ${timeLeft % 60} сек...`, 'info');
+        }
+        return;
       }
-      
-      // Після 5 спроб переходимо до Closed
+
+      // Час майже вийшов - переходимо до перевірки в Opened
+      await addLog(`✅ Таймфрейм завершився! Перевірка в Opened...`, 'success');
+      phase = 'checking_opened';
+      checks = 0;
+    }
+
+    if (phase === 'checking_opened') {
+      // ФАЗА 2: Перевіряємо чи угода ще в Opened (максимум 5 спроб)
+      await addLog(`   [${checks}] Перевірка Opened...`, 'info');
+
+      const stillOpened = await checkIfStillOpened(tradeInfo);
+
+      if (!stillOpened) {
+        // Угоди вже немає в Opened - переходимо до Closed
+        await addLog(`✅ Угода завершилась! Перевірка результату в Closed...`, 'success');
+        phase = 'checking_closed';
+        checks = 0;
+        return;
+      }
+
       if (checks >= 5) {
-        await addLog(`⚠️ Не знайдено в Opened, перехожу до Closed`, 'warning');
-        tradeInfo.found = true; // Переходимо до наступної фази
+        // Угода досі в Opened після 5 спроб - припускаємо що завершилась
+        await addLog(`⚠️ Угода досі в Opened, перехожу до Closed`, 'warning');
+        phase = 'checking_closed';
+        checks = 0;
       }
-      
-    } else {
-      // ФАЗА 2: Чекаємо поки угода з'явиться в Closed
+    }
+
+    if (phase === 'checking_closed') {
+      // ФАЗА 3: Шукаємо результат в Closed
       await addLog(`   [${checks}] Пошук в Closed...`, 'info');
-      
+
       const result = await findAndCheckInClosed(tradeInfo);
-      
+
       if (result !== null) {
         clearInterval(tradeMonitorInterval);
         tradeMonitorInterval = null;
-        
+
         if (result) {
           await addLog(`🎉 ВИГРАШ +${(trade.amount * 0.92).toFixed(0)}`, 'success');
         } else {
           await addLog(`😞 ПРОГРАШ -${trade.amount}`, 'error');
         }
-        
+
         notifyTradeResult(trade, result);
         return;
       }
-      
+
       // Таймаут після 40 перевірок (2 хвилини)
       if (checks >= 40) {
         clearInterval(tradeMonitorInterval);
         tradeMonitorInterval = null;
-        await addLog(`⚠️ Таймаут ${checks * 3}сек`, 'warning');
+        await addLog(`⚠️ Таймаут ${checks * 3}сек - вважаємо програшем`, 'warning');
         notifyTradeResult(trade, false);
       }
     }
   }, 3000);
+}
+
+// Парсинг таймфрейму в хвилини
+function parseTimeframe(timeframe) {
+  const tfUpper = timeframe.toUpperCase().trim();
+
+  if (tfUpper.includes('H')) {
+    return parseInt(tfUpper.replace(/[^0-9]/g, '')) * 60;
+  } else if (tfUpper.includes('M')) {
+    return parseInt(tfUpper.replace(/[^0-9]/g, ''));
+  } else if (tfUpper.includes('S')) {
+    return parseInt(tfUpper.replace(/[^0-9]/g, '')) / 60;
+  } else {
+    return parseInt(tfUpper);
+  }
+}
+
+// Перевірка чи угода ще в Opened
+async function checkIfStillOpened(tradeInfo) {
+  await clickTab('OPENED');
+  await wait(1000);
+
+  const dealItems = document.querySelectorAll('.item-row, .deal-item, [class*="deal"]');
+  const cleanPair = tradeInfo.pair.replace('/', '').replace(' ', '');
+
+  for (const item of dealItems) {
+    const text = item.textContent;
+
+    if (text.includes(cleanPair) || text.includes(tradeInfo.pair)) {
+      // Знайшли пару - перевіряємо чи це наша угода
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // Знаходимо угоду в Opened і запам'ятовуємо деталі
