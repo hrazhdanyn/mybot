@@ -509,6 +509,80 @@
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
     }
+
+    .template-item {
+      background: #0f1624;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-left: 4px solid #00d9ff;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .template-item:hover {
+      transform: translateX(4px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .template-item.active {
+      border-left-color: #00ff88;
+      background: linear-gradient(90deg, rgba(0, 255, 136, 0.05) 0%, #0f1624 100%);
+    }
+
+    .template-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .template-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: white;
+    }
+
+    .template-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .template-btn {
+      background: transparent;
+      border: 1px solid #2d3561;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #888;
+    }
+
+    .template-btn:hover {
+      background: #2d3561;
+      color: white;
+    }
+
+    .webhook-item {
+      background: #0f1624;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 6px;
+      border-left: 3px solid #00d9ff;
+      font-size: 11px;
+    }
+
+    .webhook-time {
+      color: #666;
+      font-size: 10px;
+      margin-bottom: 4px;
+    }
+
+    .webhook-data {
+      color: #00d9ff;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
@@ -545,6 +619,10 @@
     <div class="tab active" data-tab="settings">
       <span class="tab-icon">⚙️</span>
       <span>Налаштування</span>
+    </div>
+    <div class="tab" data-tab="webhook">
+      <span class="tab-icon">🔗</span>
+      <span>Webhook</span>
     </div>
     <div class="tab" data-tab="open-trades">
       <span class="tab-icon">📊</span>
@@ -651,6 +729,135 @@
           <div class="toggle-switch active" data-level="3">
             <div class="toggle-slider"></div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Webhook Tab -->
+  <div class="tab-content" id="webhook">
+    <div class="section">
+      <div class="section-title">🔗 URL для отримання сигналів</div>
+      <div style="background: #0f1624; padding: 12px; border-radius: 8px; border: 1px solid #2d3561; margin-bottom: 12px;">
+        <div style="font-size: 11px; color: #888; margin-bottom: 6px;">Відправте POST-запит на цю адресу:</div>
+        <div id="webhookUrl" style="background: #1a1a2e; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 11px; color: #00d9ff; word-break: break-all; cursor: pointer;" title="Клікніть для копіювання">
+          chrome-extension://[extension-id]/webhook
+        </div>
+      </div>
+      <button class="btn btn-primary" id="copyWebhookUrl">📋 Копіювати URL</button>
+      <button class="btn refresh-btn" id="testWebhook">🧪 Тестовий Webhook</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📋 Шаблони Webhook</div>
+
+      <div id="templatesList" style="margin-bottom: 12px;">
+        <div class="empty-state" style="padding: 20px;">
+          <div class="empty-icon">📝</div>
+          <div>Немає збережених шаблонів</div>
+        </div>
+      </div>
+
+      <button class="btn btn-success" id="createTemplate">➕ Створити шаблон</button>
+    </div>
+
+    <!-- Template Editor Modal (hidden by default) -->
+    <div id="templateEditor" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 1000; overflow-y: auto;">
+      <div style="background: #1a1a2e; margin: 20px auto; max-width: 500px; border-radius: 12px; padding: 20px; max-height: 90vh; overflow-y: auto;">
+        <h2 style="color: #00d9ff; margin-bottom: 20px; font-size: 18px;">📝 Редактор шаблону</h2>
+
+        <div class="section">
+          <div class="section-title">🔍 Крок 1: Очікування webhook</div>
+          <p style="font-size: 12px; color: #888; margin-bottom: 12px;">
+            Відправте тестовий webhook для аналізу структури даних
+          </p>
+          <div id="webhookStatus" style="padding: 12px; background: #0f1624; border-radius: 8px; border-left: 4px solid #ffaa00; margin-bottom: 12px;">
+            <div style="font-size: 12px; color: #ffaa00;">⏳ Очікую webhook...</div>
+          </div>
+          <div id="webhookData" style="display: none; background: #0f1624; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 10px; max-height: 200px; overflow-y: auto;"></div>
+        </div>
+
+        <div id="mappingSection" style="display: none;">
+          <div class="section">
+            <div class="section-title">🎯 Крок 2: Мапінг полів</div>
+
+            <div class="input-group">
+              <label>Назва шаблону</label>
+              <input type="text" id="templateName" placeholder="Наприклад: TradingView Signals">
+            </div>
+
+            <div class="input-group">
+              <label>Пара валют (path в JSON)</label>
+              <input type="text" id="pairPath" placeholder="Наприклад: pair або ticker">
+              <div style="font-size: 10px; color: #666; margin-top: 4px;">Приклад: "EURUSD" → "EUR/USD"</div>
+            </div>
+
+            <div class="input-group">
+              <label>Напрямок (path в JSON)</label>
+              <input type="text" id="directionPath" placeholder="Наприклад: action або side">
+              <div style="font-size: 10px; color: #666; margin-top: 4px;">Значення: "buy/call" для CALL, "sell/put" для PUT</div>
+            </div>
+
+            <div class="input-group">
+              <label>Час відкриття (path в JSON)</label>
+              <input type="text" id="timePath" placeholder="Наприклад: time або entry_time">
+            </div>
+
+            <div class="input-group">
+              <label>Таймфрейм (path в JSON, опціонально)</label>
+              <input type="text" id="timeframePath" placeholder="Наприклад: timeframe або interval">
+              <div style="font-size: 10px; color: #666; margin-top: 4px;">Наприклад: "5M" або "5"</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">🌍 Крок 3: Часовий пояс</div>
+
+            <div class="input-group">
+              <label>Часовий пояс сигналів</label>
+              <select id="sourceTimezone">
+                <option value="UTC">UTC (GMT+0)</option>
+                <option value="America/New_York">New York (GMT-5/-4)</option>
+                <option value="Europe/London">London (GMT+0/+1)</option>
+                <option value="Europe/Kiev" selected>Київ (GMT+2/+3)</option>
+                <option value="Asia/Tokyo">Tokyo (GMT+9)</option>
+                <option value="Asia/Shanghai">Shanghai (GMT+8)</option>
+                <option value="Europe/Moscow">Moscow (GMT+3)</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label>Формат часу</label>
+              <select id="timeFormat">
+                <option value="HH:mm" selected>24-годинний (HH:mm)</option>
+                <option value="HH:mm:ss">24-годинний з секундами (HH:mm:ss)</option>
+                <option value="hh:mm A">12-годинний (hh:mm AM/PM)</option>
+                <option value="timestamp">Unix timestamp</option>
+                <option value="iso">ISO 8601</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">🧪 Крок 4: Тестування</div>
+            <button class="btn btn-primary" id="testMapping">🧪 Тестувати мапінг</button>
+            <div id="testResult" style="margin-top: 12px; display: none;"></div>
+          </div>
+
+          <div class="control-buttons" style="margin-top: 16px;">
+            <button class="btn btn-success" id="saveTemplate">💾 Зберегти</button>
+            <button class="btn btn-danger" id="cancelTemplate">❌ Скасувати</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📊 Історія webhook</div>
+      <div id="webhookHistory" style="max-height: 200px; overflow-y: auto;">
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <div>Webhook ще не надходили</div>
         </div>
       </div>
     </div>

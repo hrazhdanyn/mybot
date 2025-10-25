@@ -129,9 +129,7 @@ async function processSignal(signal) {
     'martingaleMultiplier',
     'martingaleMultiplierPercent',
     'globalMartingale',
-    'level1',
-    'level2',
-    'level3',
+    'activeLevels',
     'botActive'
   ]);
   
@@ -179,15 +177,15 @@ async function processSignal(signal) {
   
   // Додавання рівнів мартингейлу
   if (signal.martingaleLevels && settings.maxMartingale > 0) {
-    const activeLevels = [settings.level1, settings.level2, settings.level3];
-    const multiplier = settings.stakeType === 'percent' 
+    const activeLevels = settings.activeLevels || [1, 2, 3];
+    const multiplier = settings.stakeType === 'percent'
       ? settings.martingaleMultiplierPercent || 2.0
       : settings.martingaleMultiplier || 2.3;
-    
+
     await addLog(`🔄 Мартингейл: макс ${settings.maxMartingale} рівнів, множник ${multiplier}`, 'info');
-    
+
     signal.martingaleLevels.forEach(async (ml, index) => {
-      if (index < settings.maxMartingale && activeLevels[index]) {
+      if (index < settings.maxMartingale && activeLevels.includes(ml.level)) {
         let mlTimeKyiv;
         if (signal.isTestSignal) {
           mlTimeKyiv = parseTimeString(ml.time);
@@ -328,9 +326,7 @@ async function handleTradeResult(result) {
     'initialAmount',
     'stakeType',
     'globalMartingale',
-    'level1',
-    'level2',
-    'level3'
+    'activeLevels'
   ]);
   
   // Розрахунок прибутку
@@ -358,11 +354,11 @@ async function handleTradeResult(result) {
     // Перевіряємо чи є наступний рівень мартингейлу
     if (trade.martingaleLevels && trade.martingaleLevel < trade.martingaleLevels.length) {
       const nextLevel = trade.martingaleLevels[trade.martingaleLevel];
-      
+
       // Перевіряємо чи увімкнений цей рівень
-      const activeLevels = [settings.level1, settings.level2, settings.level3];
-      const levelEnabled = activeLevels[nextLevel.level - 1];
-      
+      const activeLevels = settings.activeLevels || [1, 2, 3];
+      const levelEnabled = activeLevels.includes(nextLevel.level);
+
       if (levelEnabled) {
         await addLog(`🔄 Запуск мартингейл рівень ${nextLevel.level}`, 'warning');
         
@@ -519,12 +515,14 @@ chrome.runtime.onInstalled.addListener(() => {
     martingaleMultiplier: 2.3,
     martingaleMultiplierPercent: 2.0,
     globalMartingale: true,
-    level1: true,
-    level2: true,
-    level3: true,
+    activeLevels: [1, 2, 3],
     trades: [],
     scheduledTrades: [],
     stats: { total: 0, wins: 0, losses: 0, profit: 0 },
-    logs: []
+    logs: [],
+    webhookTemplates: [],
+    webhookHistory: [],
+    activeTemplate: null,
+    closedTrades: []
   });
 });

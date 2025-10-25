@@ -495,6 +495,522 @@ async function exportLogs() {
   addLog('Логи експортовано', 'success');
 }
 
+// ═══════════════════════════════════════════════════════════
+// WEBHOOK FUNCTIONALITY
+// ═══════════════════════════════════════════════════════════
+
+let currentWebhookData = null;
+let webhookListenerActive = false;
+
+// Отримання Extension ID та Webhook URL
+function getWebhookUrl() {
+  const extensionId = chrome.runtime.id;
+  return `http://localhost:8765/webhook`; // Використовуємо локальний сервер
+}
+
+// Ініціалізація webhook функціоналу
+async function initWebhook() {
+  const webhookUrlEl = document.getElementById('webhookUrl');
+  webhookUrlEl.textContent = getWebhookUrl();
+
+  // Кнопки webhook
+  document.getElementById('copyWebhookUrl').addEventListener('click', copyWebhookUrl);
+  document.getElementById('testWebhook').addEventListener('click', sendTestWebhook);
+  document.getElementById('createTemplate').addEventListener('click', openTemplateEditor);
+  document.getElementById('cancelTemplate').addEventListener('click', closeTemplateEditor);
+  document.getElementById('saveTemplate').addEventListener('click', saveTemplate);
+  document.getElementById('testMapping').addEventListener('click', testMapping);
+
+  // Завантаження шаблонів
+  await loadTemplates();
+
+  // Завантаження історії
+  await loadWebhookHistory();
+}
+
+// Копіювання webhook URL
+async function copyWebhookUrl() {
+  const url = getWebhookUrl();
+
+  try {
+    await navigator.clipboard.writeText(url);
+    alert('URL скопійовано в буфер обміну!');
+    addLog('Webhook URL скопійовано', 'success');
+  } catch (err) {
+    // Fallback для старих браузерів
+    const input = document.createElement('input');
+    input.value = url;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    alert('URL скопійовано в буфер обміну!');
+  }
+}
+
+// Тестовий webhook
+async function sendTestWebhook() {
+  const testData = {
+    pair: 'EUR/USD',
+    action: 'buy',
+    time: '14:30',
+    timeframe: '5M'
+  };
+
+  addLog('Відправка тестового webhook...', 'info');
+
+  // Симулюємо отримання webhook
+  await handleIncomingWebhook(testData);
+
+  alert('Тестовий webhook відправлено!');
+}
+
+// Обробка вхідного webhook
+async function handleIncomingWebhook(data) {
+  addLog(`Отримано webhook: ${JSON.stringify(data)}`, 'info');
+
+  // Зберігаємо в історію
+  const historyData = await chrome.storage.local.get('webhookHistory');
+  const history = historyData.webhookHistory || [];
+
+  history.unshift({
+    timestamp: new Date().toISOString(),
+    data: data
+  });
+
+  // Зберігаємо тільки останні 50
+  if (history.length > 50) {
+    history.pop();
+  }
+
+  await chrome.storage.local.set({ webhookHistory: history });
+  await loadWebhookHistory();
+
+  // Якщо відкритий редактор - показуємо дані
+  if (webhookListenerActive) {
+    currentWebhookData = data;
+    displayWebhookData(data);
+  }
+
+  // Перевіряємо чи є активний шаблон
+  const settings = await chrome.storage.local.get(['activeTemplate', 'webhookTemplates']);
+
+  if (settings.activeTemplate && settings.webhookTemplates) {
+    const template = settings.webhookTemplates.find(t => t.id === settings.activeTemplate);
+
+    if (template) {
+      const signal = parseWebhookWithTemplate(data, template);
+
+      if (signal) {
+        addLog(`Сигнал розпізнано: ${signal.pair} ${signal.direction}`, 'success');
+
+        // Відправляємо на обробку
+        chrome.runtime.sendMessage({
+          action: 'processSignal',
+          signal: signal
+        });
+      } else {
+        addLog('Не вдалося розпізнати сигнал з webhook', 'error');
+      }
+    }
+  }
+}
+
+// Парсинг webhook з шаблоном
+function parseWebhookWithTemplate(data, template) {
+  try {
+    // Витягуємо значення за path
+    const pair = getValueByPath(data, template.pairPath);
+    const direction = getValueByPath(data, template.directionPath);
+    const time = getValueByPath(data, template.timePath);
+    const timeframe = template.timeframePath ? getValueByPath(data, template.timeframePath) : null;
+
+    if (!pair || !direction || !time) {
+      return null;
+    }
+
+    // Форматуємо пару
+    let formattedPair = pair.replace(/[^A-Z]/g, '');
+    if (formattedPair.length === 6) {
+      formattedPair = formattedPair.substring(0, 3) + '/' + formattedPair.substring(3);
+    }
+
+    // Визначаємо напрямок
+    const dirLower = direction.toLowerCase();
+    let formattedDirection = 'CALL';
+    if (dirLower.includes('sell') || dirLower.includes('put') || dirLower.includes('down')) {
+      formattedDirection = 'PUT';
+    }
+
+    // Конвертуємо час
+    const formattedTime = convertTimeWithTimezone(time, template.sourceTimezone, template.timeFormat);
+
+    // Форматуємо таймфрейм
+    let formattedTimeframe = timeframe || '5M';
+    if (!formattedTimeframe.includes('M')) {
+      formattedTimeframe = formattedTimeframe + 'M';
+    }
+
+    return {
+      pair: formattedPair,
+      direction: formattedDirection,
+      timeframe: formattedTimeframe,
+      entryTime: formattedTime,
+      martingaleLevels: []
+    };
+  } catch (err) {
+    console.error('Помилка парсингу webhook:', err);
+    return null;
+  }
+}
+
+// Отримання значення з об'єкта за path
+function getValueByPath(obj, path) {
+  if (!path) return null;
+
+  const keys = path.split('.');
+  let value = obj;
+
+  for (const key of keys) {
+    if (value && typeof value === 'object' && key in value) {
+      value = value[key];
+    } else {
+      return null;
+    }
+  }
+
+  return value;
+}
+
+// Конвертація часу з урахуванням часового поясу
+function convertTimeWithTimezone(time, sourceTimezone, timeFormat) {
+  try {
+    // Якщо вже київський час - повертаємо як є
+    if (sourceTimezone === 'Europe/Kiev') {
+      return parseTimeToKyivFormat(time, timeFormat);
+    }
+
+    // Створюємо дату з поточним днем
+    const now = new Date();
+    let timeStr;
+
+    // Парсимо час в залежності від формату
+    if (timeFormat === 'timestamp') {
+      const date = new Date(parseInt(time) * 1000);
+      timeStr = formatTimeToKyiv(date);
+    } else if (timeFormat === 'iso') {
+      const date = new Date(time);
+      timeStr = formatTimeToKyiv(date);
+    } else {
+      // Для форматів HH:mm, HH:mm:ss тощо
+      timeStr = parseTimeToKyivFormat(time, timeFormat);
+
+      // Конвертуємо з source timezone до Kyiv
+      const [hours, minutes] = timeStr.split(':').map(Number);
+
+      // Різниця між часовими поясами
+      const timezoneOffsets = {
+        'UTC': 0,
+        'America/New_York': -5, // EDT -4, EST -5
+        'Europe/London': 0,
+        'Europe/Kiev': 2, // EET +2, EEST +3
+        'Asia/Tokyo': 9,
+        'Asia/Shanghai': 8,
+        'Europe/Moscow': 3
+      };
+
+      const sourceOffset = timezoneOffsets[sourceTimezone] || 0;
+      const kyivOffset = 2; // Київ GMT+2 (або +3 влітку)
+      const diff = kyivOffset - sourceOffset;
+
+      let newHours = hours + diff;
+      if (newHours >= 24) newHours -= 24;
+      if (newHours < 0) newHours += 24;
+
+      timeStr = `${String(newHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+
+    return timeStr;
+  } catch (err) {
+    console.error('Помилка конвертації часу:', err);
+    return time;
+  }
+}
+
+// Парсинг часу в київський формат
+function parseTimeToKyivFormat(time, format) {
+  if (format === 'HH:mm' || format === 'HH:mm:ss') {
+    const parts = time.split(':');
+    return `${parts[0]}:${parts[1]}`;
+  } else if (format === 'hh:mm A') {
+    // 12-годинний формат
+    const parts = time.split(' ');
+    const timeParts = parts[0].split(':');
+    let hours = parseInt(timeParts[0]);
+    const minutes = timeParts[1];
+    const period = parts[1];
+
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
+  }
+
+  return time;
+}
+
+// Форматування дати до київського часу
+function formatTimeToKyiv(date) {
+  return date.toLocaleTimeString('uk-UA', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Kiev'
+  });
+}
+
+// Відкриття редактора шаблонів
+async function openTemplateEditor() {
+  document.getElementById('templateEditor').style.display = 'block';
+  document.getElementById('mappingSection').style.display = 'none';
+  document.getElementById('webhookStatus').innerHTML = '<div style="font-size: 12px; color: #ffaa00;">⏳ Очікую webhook...</div>';
+  document.getElementById('webhookData').style.display = 'none';
+
+  // Очищаємо поля
+  document.getElementById('templateName').value = '';
+  document.getElementById('pairPath').value = '';
+  document.getElementById('directionPath').value = '';
+  document.getElementById('timePath').value = '';
+  document.getElementById('timeframePath').value = '';
+
+  currentWebhookData = null;
+  webhookListenerActive = true;
+
+  addLog('Очікування webhook для створення шаблону...', 'info');
+}
+
+// Закриття редактора шаблонів
+function closeTemplateEditor() {
+  document.getElementById('templateEditor').style.display = 'none';
+  webhookListenerActive = false;
+  currentWebhookData = null;
+}
+
+// Відображення даних webhook
+function displayWebhookData(data) {
+  const statusEl = document.getElementById('webhookStatus');
+  statusEl.innerHTML = '<div style="font-size: 12px; color: #00ff88;">✅ Webhook отримано!</div>';
+
+  const dataEl = document.getElementById('webhookData');
+  dataEl.style.display = 'block';
+  dataEl.textContent = JSON.stringify(data, null, 2);
+
+  document.getElementById('mappingSection').style.display = 'block';
+
+  // Автозаповнення полів (якщо можливо)
+  autoFillTemplateFields(data);
+}
+
+// Автозаповнення полів шаблону
+function autoFillTemplateFields(data) {
+  // Шукаємо можливі поля
+  const keys = Object.keys(data);
+
+  keys.forEach(key => {
+    const lowerKey = key.toLowerCase();
+
+    if (lowerKey.includes('pair') || lowerKey.includes('ticker') || lowerKey.includes('symbol')) {
+      document.getElementById('pairPath').value = key;
+    }
+
+    if (lowerKey.includes('action') || lowerKey.includes('side') || lowerKey.includes('direction')) {
+      document.getElementById('directionPath').value = key;
+    }
+
+    if (lowerKey.includes('time') || lowerKey.includes('entry')) {
+      document.getElementById('timePath').value = key;
+    }
+
+    if (lowerKey.includes('timeframe') || lowerKey.includes('interval') || lowerKey.includes('period')) {
+      document.getElementById('timeframePath').value = key;
+    }
+  });
+}
+
+// Тестування мапінгу
+async function testMapping() {
+  if (!currentWebhookData) {
+    alert('Спочатку отримайте webhook!');
+    return;
+  }
+
+  const template = {
+    pairPath: document.getElementById('pairPath').value,
+    directionPath: document.getElementById('directionPath').value,
+    timePath: document.getElementById('timePath').value,
+    timeframePath: document.getElementById('timeframePath').value,
+    sourceTimezone: document.getElementById('sourceTimezone').value,
+    timeFormat: document.getElementById('timeFormat').value
+  };
+
+  const signal = parseWebhookWithTemplate(currentWebhookData, template);
+
+  const resultEl = document.getElementById('testResult');
+  resultEl.style.display = 'block';
+
+  if (signal) {
+    resultEl.innerHTML = `
+      <div style="background: #0f1624; padding: 12px; border-radius: 8px; border-left: 4px solid #00ff88;">
+        <div style="font-size: 12px; color: #00ff88; margin-bottom: 8px;">✅ Мапінг успішний!</div>
+        <div style="font-size: 11px; color: #ccc; font-family: monospace;">
+          <div>Пара: ${signal.pair}</div>
+          <div>Напрямок: ${signal.direction}</div>
+          <div>Час: ${signal.entryTime}</div>
+          <div>Таймфрейм: ${signal.timeframe}</div>
+        </div>
+      </div>
+    `;
+  } else {
+    resultEl.innerHTML = `
+      <div style="background: #0f1624; padding: 12px; border-radius: 8px; border-left: 4px solid #ff4444;">
+        <div style="font-size: 12px; color: #ff4444;">❌ Помилка мапінгу</div>
+        <div style="font-size: 11px; color: #888; margin-top: 4px;">Перевірте правильність полів</div>
+      </div>
+    `;
+  }
+}
+
+// Збереження шаблону
+async function saveTemplate() {
+  const name = document.getElementById('templateName').value.trim();
+
+  if (!name) {
+    alert('Введіть назву шаблону!');
+    return;
+  }
+
+  if (!currentWebhookData) {
+    alert('Спочатку отримайте webhook!');
+    return;
+  }
+
+  const template = {
+    id: Date.now().toString(),
+    name: name,
+    pairPath: document.getElementById('pairPath').value,
+    directionPath: document.getElementById('directionPath').value,
+    timePath: document.getElementById('timePath').value,
+    timeframePath: document.getElementById('timeframePath').value,
+    sourceTimezone: document.getElementById('sourceTimezone').value,
+    timeFormat: document.getElementById('timeFormat').value,
+    createdAt: new Date().toISOString()
+  };
+
+  // Зберігаємо
+  const data = await chrome.storage.local.get('webhookTemplates');
+  const templates = data.webhookTemplates || [];
+  templates.push(template);
+
+  await chrome.storage.local.set({ webhookTemplates: templates });
+
+  addLog(`Шаблон "${name}" збережено`, 'success');
+  closeTemplateEditor();
+  await loadTemplates();
+}
+
+// Завантаження списку шаблонів
+async function loadTemplates() {
+  const data = await chrome.storage.local.get(['webhookTemplates', 'activeTemplate']);
+  const templates = data.webhookTemplates || [];
+  const activeId = data.activeTemplate || null;
+
+  const listEl = document.getElementById('templatesList');
+
+  if (templates.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty-state" style="padding: 20px;">
+        <div class="empty-icon">📝</div>
+        <div>Немає збережених шаблонів</div>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = templates.map(template => {
+    const isActive = template.id === activeId;
+    return `
+      <div class="template-item ${isActive ? 'active' : ''}" data-template-id="${template.id}">
+        <div class="template-header">
+          <span class="template-name">${isActive ? '✅ ' : ''}${template.name}</span>
+          <div class="template-actions">
+            <button class="template-btn" onclick="activateTemplate('${template.id}')">
+              ${isActive ? 'Активний' : 'Активувати'}
+            </button>
+            <button class="template-btn" onclick="deleteTemplate('${template.id}')">🗑️</button>
+          </div>
+        </div>
+        <div style="font-size: 10px; color: #666; margin-top: 4px;">
+          ${template.sourceTimezone} • ${template.timeFormat}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Активація шаблону
+window.activateTemplate = async function(templateId) {
+  await chrome.storage.local.set({ activeTemplate: templateId });
+  await loadTemplates();
+  addLog('Шаблон активовано', 'success');
+};
+
+// Видалення шаблону
+window.deleteTemplate = async function(templateId) {
+  if (!confirm('Видалити цей шаблон?')) return;
+
+  const data = await chrome.storage.local.get('webhookTemplates');
+  const templates = data.webhookTemplates || [];
+
+  const filtered = templates.filter(t => t.id !== templateId);
+  await chrome.storage.local.set({ webhookTemplates: filtered });
+
+  addLog('Шаблон видалено', 'warning');
+  await loadTemplates();
+};
+
+// Завантаження історії webhook
+async function loadWebhookHistory() {
+  const data = await chrome.storage.local.get('webhookHistory');
+  const history = data.webhookHistory || [];
+
+  const historyEl = document.getElementById('webhookHistory');
+
+  if (history.length === 0) {
+    historyEl.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div>Webhook ще не надходили</div>
+      </div>
+    `;
+    return;
+  }
+
+  historyEl.innerHTML = history.slice(0, 10).map(item => {
+    const date = new Date(item.timestamp);
+    const timeStr = date.toLocaleTimeString('uk-UA');
+    return `
+      <div class="webhook-item">
+        <div class="webhook-time">${timeStr}</div>
+        <div class="webhook-data">${JSON.stringify(item.data)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Ініціалізація webhook при завантаженні
+document.addEventListener('DOMContentLoaded', () => {
+  initWebhook();
+});
+
 // Оновлення UI кожні 2 секунди
 setInterval(async () => {
   await updateUI();
@@ -504,5 +1020,11 @@ setInterval(async () => {
   const logsTab = document.getElementById('logs');
   if (logsTab.classList.contains('active')) {
     await updateLogs();
+  }
+
+  // Оновлюємо webhook історію якщо вкладка активна
+  const webhookTab = document.getElementById('webhook');
+  if (webhookTab.classList.contains('active')) {
+    await loadWebhookHistory();
   }
 }, 2000);
