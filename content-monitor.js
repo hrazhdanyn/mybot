@@ -240,4 +240,122 @@ function notifyTradeResult(trade, win) {
   currentTrade = null;
 }
 
+// Функція для збору закритих угод з історії
+async function fetchClosedTradesFromSite() {
+  try {
+    addLog('Збір закритих угод з історії...', 'info');
+
+    // Переходимо на вкладку Closed
+    await clickTab('CLOSED');
+    await wait(2000);
+
+    const closedTrades = [];
+    const dealItems = document.querySelectorAll('.item-row, .deal-item, [class*="deal"]');
+
+    addLog(`Знайдено ${dealItems.length} записів`, 'info');
+
+    for (const item of dealItems) {
+      try {
+        const text = item.textContent;
+
+        // Витягуємо пару (наприклад: EUR/USD або EURUSD)
+        const pairMatch = text.match(/([A-Z]{3}[\s\/]?[A-Z]{3})/);
+        if (!pairMatch) continue;
+
+        const pair = pairMatch[0];
+
+        // Витягуємо час
+        const timeMatch = text.match(/(\d{2}):(\d{2}):(\d{2})/);
+        const closeTime = timeMatch ? timeMatch[0] : null;
+
+        // Витягуємо суму
+        const amountMatch = text.match(/[\$\₴]?\s?(\d+(?:\.\d+)?)/);
+        const amount = amountMatch ? parseFloat(amountMatch[1]) : 0;
+
+        // Визначаємо напрямок (CALL/PUT)
+        let direction = 'CALL';
+        if (text.toUpperCase().includes('PUT') || text.includes('⬇')) {
+          direction = 'PUT';
+        }
+
+        // Визначаємо результат (виграш/програш)
+        const priceUp = item.querySelector('.price-up, .centered.price-up, [class*="price-up"]');
+        const priceDown = item.querySelector('.price-down, .centered.price-down, [class*="price-down"]');
+
+        let status = 'unknown';
+        let profit = 0;
+
+        if (priceUp) {
+          status = 'win';
+          const profitText = priceUp.textContent.trim().replace(/[^\d.-]/g, '');
+          profit = parseFloat(profitText) || (amount * 0.92);
+        } else if (priceDown) {
+          status = 'loss';
+          profit = -amount;
+        }
+
+        // Додаємо угоду
+        if (status !== 'unknown') {
+          closedTrades.push({
+            pair: pair,
+            direction: direction,
+            amount: amount,
+            profit: profit,
+            status: status,
+            closeTime: closeTime || new Date().toLocaleTimeString('uk-UA'),
+            time: closeTime || new Date().toLocaleTimeString('uk-UA')
+          });
+        }
+      } catch (err) {
+        console.error('Помилка обробки угоди:', err);
+      }
+    }
+
+    // Зберігаємо закриті угоди
+    const existingData = await chrome.storage.local.get('closedTrades');
+    const existingTrades = existingData.closedTrades || [];
+
+    // Об'єднуємо з існуючими (уникаємо дублікатів)
+    const allTrades = [...existingTrades];
+
+    for (const newTrade of closedTrades) {
+      const isDuplicate = allTrades.some(t =>
+        t.pair === newTrade.pair &&
+        t.closeTime === newTrade.closeTime &&
+        t.amount === newTrade.amount
+      );
+
+      if (!isDuplicate) {
+        allTrades.push(newTrade);
+      }
+    }
+
+    await chrome.storage.local.set({ closedTrades: allTrades });
+
+    addLog(`Оновлено ${closedTrades.length} закритих угод`, 'success');
+
+    return {
+      success: true,
+      count: closedTrades.length,
+      trades: closedTrades
+    };
+  } catch (error) {
+    addLog(`Помилка збору угод: ${error.message}`, 'error');
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Обробник повідомлень для збору закритих угод
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'fetchClosedTrades') {
+    fetchClosedTradesFromSite().then(result => {
+      sendResponse(result);
+    });
+    return true; // Асинхронна відповідь
+  }
+});
+
 console.log('✅ Monitor module v2.0 loaded');

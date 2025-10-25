@@ -8,489 +8,701 @@
       padding: 0;
       box-sizing: border-box;
     }
-    
+
     body {
-      width: 380px;
+      width: 420px;
+      min-height: 500px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #1a1a2e;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       color: #eee;
-      padding: 16px;
     }
-    
+
     .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
       text-align: center;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 2px solid #16213e;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
-    
+
     h1 {
-      font-size: 20px;
-      color: #00d9ff;
-      margin-bottom: 4px;
+      font-size: 22px;
+      color: white;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    
-    .status {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 12px;
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
       font-size: 12px;
       font-weight: 600;
-      margin-top: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
     }
-    
-    .status.active {
-      background: #00ff8833;
-      color: #00ff88;
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
     }
-    
-    .status.inactive {
-      background: #ff444433;
-      color: #ff4444;
+
+    .status-badge.active .status-dot {
+      background: #00ff88;
+      box-shadow: 0 0 10px #00ff88;
     }
-    
+
+    .status-badge.inactive .status-dot {
+      background: #ff4444;
+      box-shadow: 0 0 10px #ff4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-mini {
+      text-align: center;
+    }
+
+    .stat-mini-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .stat-mini-label {
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tabs {
+      display: flex;
+      background: #0f1624;
+      border-bottom: 2px solid #2d3561;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 14px 8px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .tab:hover {
+      background: rgba(102, 126, 234, 0.1);
+      color: #aaa;
+    }
+
+    .tab.active {
+      color: #00d9ff;
+      border-bottom-color: #00d9ff;
+      background: rgba(0, 217, 255, 0.05);
+    }
+
+    .tab-icon {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 16px;
+      animation: fadeIn 0.3s;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
     .section {
       background: #16213e;
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 16px;
       margin-bottom: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     }
-    
+
     .section-title {
       font-size: 14px;
       font-weight: 600;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       color: #00d9ff;
       display: flex;
       align-items: center;
       gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(0, 217, 255, 0.1);
     }
-    
+
     .input-group {
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
-    
+
     .input-group:last-child {
       margin-bottom: 0;
     }
-    
+
     label {
       display: block;
       font-size: 12px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       color: #aaa;
       font-weight: 500;
     }
-    
-    input, select {
+
+    input[type="number"], select {
       width: 100%;
-      padding: 10px;
-      border: 1px solid #2d3561;
-      border-radius: 6px;
+      padding: 10px 12px;
+      border: 2px solid #2d3561;
+      border-radius: 8px;
       background: #0f1624;
       color: #eee;
       font-size: 14px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: all 0.3s;
     }
-    
-    input:focus, select:focus {
+
+    input[type="number"]:focus, select:focus {
       border-color: #00d9ff;
+      box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1);
     }
-    
+
+    /* Toggle Switch */
+    .toggle-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: #0f1624;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .toggle-label {
+      font-size: 13px;
+      color: #ccc;
+      font-weight: 500;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: #2d3561;
+      border-radius: 13px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .toggle-switch.active {
+      background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    }
+
+    .toggle-slider {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: all 0.3s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-switch.active .toggle-slider {
+      transform: translateX(22px);
+    }
+
     .btn {
       width: 100%;
-      padding: 12px;
+      padding: 13px;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
-      margin-bottom: 8px;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    
+
     .btn-primary {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
-    
+
     .btn-primary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
     }
-    
+
     .btn-success {
       background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
       color: #1a1a2e;
+      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
     }
-    
+
     .btn-success:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 255, 136, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
     }
-    
+
     .btn-danger {
       background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
       color: white;
+      box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
     }
-    
+
     .btn-danger:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(255, 68, 68, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 68, 68, 0.4);
     }
-    
+
     .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
       transform: none !important;
     }
-    
-    .trades-list {
-      max-height: 200px;
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .trades-list, .logs-container {
+      max-height: 320px;
       overflow-y: auto;
     }
-    
+
     .logs-container {
-      max-height: 250px;
-      overflow-y: auto;
       background: #0f1624;
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 12px;
       font-family: 'Courier New', monospace;
       font-size: 11px;
       line-height: 1.6;
+      border: 1px solid #2d3561;
     }
-    
+
     .log-entry {
       margin-bottom: 6px;
-      padding: 4px 0;
-      border-bottom: 1px solid #1a1a2e;
+      padding: 6px;
+      background: rgba(45, 53, 97, 0.3);
+      border-radius: 4px;
+      border-left: 3px solid #00d9ff;
     }
-    
-    .log-entry:last-child {
-      border-bottom: none;
-    }
-    
+
     .log-time {
       color: #666;
       margin-right: 8px;
     }
-    
-    .log-info {
-      color: #00d9ff;
-    }
-    
-    .log-success {
-      color: #00ff88;
-    }
-    
-    .log-error {
-      color: #ff4444;
-    }
-    
-    .log-warning {
-      color: #ffaa00;
-    }
-    
+
+    .log-info { color: #00d9ff; }
+    .log-success { color: #00ff88; }
+    .log-error { color: #ff4444; border-left-color: #ff4444; }
+    .log-warning { color: #ffaa00; border-left-color: #ffaa00; }
+
     .trade-item {
       background: #0f1624;
-      border-radius: 6px;
-      padding: 12px;
-      margin-bottom: 8px;
-      border-left: 3px solid #00d9ff;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 10px;
+      border-left: 4px solid #00d9ff;
+      transition: all 0.3s;
     }
-    
+
+    .trade-item:hover {
+      transform: translateX(4px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
     .trade-item.win {
       border-left-color: #00ff88;
+      background: linear-gradient(90deg, rgba(0, 255, 136, 0.05) 0%, #0f1624 100%);
     }
-    
+
     .trade-item.loss {
       border-left-color: #ff4444;
+      background: linear-gradient(90deg, rgba(255, 68, 68, 0.05) 0%, #0f1624 100%);
     }
-    
-    .trade-content {
-      flex: 1;
-    }
-    
-    .btn-cancel {
-      background: #ff4444;
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-    
-    .btn-cancel:hover {
-      background: #cc0000;
-      transform: scale(1.05);
-    }
-    
+
     .trade-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
-    
+
     .trade-pair {
-      font-weight: 600;
-      font-size: 13px;
+      font-weight: 700;
+      font-size: 15px;
+      color: white;
     }
-    
+
     .trade-direction {
-      padding: 2px 8px;
-      border-radius: 4px;
+      padding: 4px 12px;
+      border-radius: 6px;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
+      text-transform: uppercase;
     }
-    
+
     .trade-direction.call {
-      background: #00ff8833;
+      background: rgba(0, 255, 136, 0.2);
       color: #00ff88;
     }
-    
+
     .trade-direction.put {
-      background: #ff444433;
+      background: rgba(255, 68, 68, 0.2);
       color: #ff4444;
     }
-    
+
     .trade-info {
-      font-size: 11px;
+      font-size: 12px;
       color: #888;
       display: flex;
       justify-content: space-between;
+      margin-top: 6px;
     }
-    
+
+    .trade-result {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 8px;
+    }
+
+    .trade-result.win {
+      background: rgba(0, 255, 136, 0.2);
+      color: #00ff88;
+    }
+
+    .trade-result.loss {
+      background: rgba(255, 68, 68, 0.2);
+      color: #ff4444;
+    }
+
     .empty-state {
       text-align: center;
-      padding: 32px 16px;
+      padding: 40px 20px;
       color: #666;
       font-size: 13px;
     }
-    
-    .stats {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+
+    .empty-icon {
+      font-size: 40px;
       margin-bottom: 12px;
+      opacity: 0.5;
     }
-    
-    .stat-card {
-      background: #0f1624;
-      padding: 12px;
-      border-radius: 6px;
-      text-align: center;
-    }
-    
-    .stat-value {
-      font-size: 20px;
-      font-weight: 700;
-      color: #00d9ff;
-      margin-bottom: 4px;
-    }
-    
-    .stat-label {
-      font-size: 11px;
-      color: #888;
-    }
-    
-    .martingale-info {
-      background: #0f1624;
-      border-radius: 6px;
-      padding: 12px;
-      margin-top: 12px;
-    }
-    
-    .martingale-level {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 0;
-      font-size: 12px;
-    }
-    
-    .martingale-level:not(:last-child) {
-      border-bottom: 1px solid #2d3561;
-    }
-    
-    .level-number {
-      color: #00d9ff;
-      font-weight: 600;
-    }
-    
+
     ::-webkit-scrollbar {
       width: 6px;
     }
-    
+
     ::-webkit-scrollbar-track {
       background: #0f1624;
       border-radius: 3px;
     }
-    
+
     ::-webkit-scrollbar-thumb {
       background: #2d3561;
       border-radius: 3px;
     }
-    
+
     ::-webkit-scrollbar-thumb:hover {
       background: #3d4571;
     }
-    
-    .webhook-url {
+
+    .control-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .control-buttons .btn {
+      margin-bottom: 0;
+    }
+
+    .refresh-btn {
+      background: linear-gradient(135deg, #00d9ff 0%, #0088ff 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(0, 217, 255, 0.3);
+    }
+
+    .refresh-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 217, 255, 0.4);
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
       background: #0f1624;
+      padding: 6px;
+      border-radius: 8px;
+    }
+
+    .filter-tab {
+      flex: 1;
       padding: 8px;
-      border-radius: 4px;
+      text-align: center;
       font-size: 11px;
-      word-break: break-all;
-      color: #00d9ff;
-      margin-top: 8px;
-      font-family: monospace;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+      color: #888;
+    }
+
+    .filter-tab.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>🤖 PocketOption Bot</h1>
-    <span class="status inactive" id="botStatus">Не активний</span>
-  </div>
-
-  <div class="section">
-    <div class="section-title">⚙️ Налаштування</div>
-    
-    <div class="input-group">
-      <label>Тип ставки</label>
-      <select id="stakeType">
-        <option value="fixed">Фіксована сума (₴)</option>
-        <option value="percent">Відсоток від депозиту (%)</option>
-      </select>
+    <h1>
+      <span>🤖</span>
+      <span>PocketOption Bot</span>
+    </h1>
+    <div class="status-badge inactive" id="botStatus">
+      <span class="status-dot"></span>
+      <span>Не активний</span>
     </div>
-    
-    <div class="input-group" id="fixedAmountGroup">
-      <label>Фіксована сума (₴)</label>
-      <input type="number" id="initialAmount" value="100" min="50" step="10">
-    </div>
-    
-    <div class="input-group" id="percentAmountGroup" style="display: none;">
-      <label>Відсоток від депозиту (%)</label>
-      <input type="number" id="percentAmount" value="1" min="0.01" max="100" step="0.1">
-    </div>
-    
-    <div class="input-group">
-      <label>Таймфрейм за замовчуванням</label>
-      <select id="defaultTimeframe">
-        <option value="1">1 хвилина</option>
-        <option value="5" selected>5 хвилин</option>
-        <option value="15">15 хвилин</option>
-        <option value="30">30 хвилин</option>
-        <option value="60">1 година</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">🔄 Мартингейл</div>
-    
-    <div class="input-group">
-      <label>Максимальний рівень мартингейлу</label>
-      <select id="maxMartingale">
-        <option value="0">Без мартингейлу</option>
-        <option value="1">1 рівень</option>
-        <option value="2">2 рівні</option>
-        <option value="3" selected>3 рівні</option>
-      </select>
-    </div>
-    
-    <div class="input-group">
-      <label>Множник для фіксованої суми</label>
-      <input type="number" id="martingaleMultiplier" value="2.3" min="1.1" step="0.1">
-    </div>
-    
-    <div class="input-group">
-      <label>Множник для відсотка</label>
-      <input type="number" id="martingaleMultiplierPercent" value="2.0" min="1.1" step="0.1">
-    </div>
-    
-    <div class="input-group">
-      <label style="display: flex; align-items: center; gap: 8px;">
-        <input type="checkbox" id="globalMartingale" checked>
-        <span>Глобальний мартингейл (чекати новий сігнал після всіх програшів)</span>
-      </label>
-    </div>
-    
-    <div class="martingale-levels" id="martingaleLevels" style="margin-top: 12px;">
-      <div style="font-size: 12px; color: #00d9ff; margin-bottom: 8px;">Активні рівні:</div>
-      <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px;">
-        <input type="checkbox" id="level1" checked>
-        <span>Рівень 1</span>
-      </label>
-      <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px;">
-        <input type="checkbox" id="level2" checked>
-        <span>Рівень 2</span>
-      </label>
-      <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px;">
-        <input type="checkbox" id="level3" checked>
-        <span>Рівень 3</span>
-      </label>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">🎯 Керування</div>
-    <button class="btn btn-success" id="startBot">▶️ Запустити бота</button>
-    <button class="btn btn-danger" id="stopBot" style="display: none;">⏹️ Зупинити бота</button>
-    <button class="btn btn-primary" id="testSignal">🧪 Тестовий сигнал</button>
-  </div>
-
-  <div class="section">
-    <div class="section-title">📊 Статистика</div>
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-value" id="totalTrades">0</div>
-        <div class="stat-label">Угод</div>
+    <div class="stats-bar">
+      <div class="stat-mini">
+        <div class="stat-mini-value" id="totalTrades">0</div>
+        <div class="stat-mini-label">Угод</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" id="winRate">0%</div>
-        <div class="stat-label">Винрейт</div>
+      <div class="stat-mini">
+        <div class="stat-mini-value" id="winRate">0%</div>
+        <div class="stat-mini-label">Винрейт</div>
       </div>
-    </div>
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-value" id="totalProfit">0 ₴</div>
-        <div class="stat-label">Прибуток</div>
+      <div class="stat-mini">
+        <div class="stat-mini-value" id="totalProfit">0₴</div>
+        <div class="stat-mini-label">Прибуток</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value" id="scheduledCount">0</div>
-        <div class="stat-label">Заплановано</div>
+      <div class="stat-mini">
+        <div class="stat-mini-value" id="scheduledCount">0</div>
+        <div class="stat-mini-label">Заплановано</div>
       </div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">📋 Активні угоди</div>
-    <div class="trades-list" id="tradesList">
-      <div class="empty-state">
-        Немає активних угод
+  <div class="tabs">
+    <div class="tab active" data-tab="settings">
+      <span class="tab-icon">⚙️</span>
+      <span>Налаштування</span>
+    </div>
+    <div class="tab" data-tab="open-trades">
+      <span class="tab-icon">📊</span>
+      <span>Відкриті</span>
+    </div>
+    <div class="tab" data-tab="closed-trades">
+      <span class="tab-icon">📈</span>
+      <span>Закриті</span>
+    </div>
+    <div class="tab" data-tab="logs">
+      <span class="tab-icon">📝</span>
+      <span>Логи</span>
+    </div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div class="tab-content active" id="settings">
+    <div class="section">
+      <div class="section-title">🎯 Керування ботом</div>
+      <button class="btn btn-success" id="startBot">▶️ Запустити бота</button>
+      <button class="btn btn-danger" id="stopBot" style="display: none;">⏹️ Зупинити бота</button>
+      <button class="btn btn-primary" id="testSignal">🧪 Тестовий сигнал</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">💰 Налаштування ставок</div>
+
+      <div class="input-group">
+        <label>Тип ставки</label>
+        <select id="stakeType">
+          <option value="fixed">Фіксована сума (₴)</option>
+          <option value="percent">Відсоток від депозиту (%)</option>
+        </select>
+      </div>
+
+      <div class="input-group" id="fixedAmountGroup">
+        <label>Фіксована сума (₴)</label>
+        <input type="number" id="initialAmount" value="100" min="50" step="10">
+      </div>
+
+      <div class="input-group" id="percentAmountGroup" style="display: none;">
+        <label>Відсоток від депозиту (%)</label>
+        <input type="number" id="percentAmount" value="1" min="0.01" max="100" step="0.1">
+      </div>
+
+      <div class="input-group">
+        <label>Таймфрейм за замовчуванням</label>
+        <select id="defaultTimeframe">
+          <option value="1">1 хвилина</option>
+          <option value="5" selected>5 хвилин</option>
+          <option value="15">15 хвилин</option>
+          <option value="30">30 хвилин</option>
+          <option value="60">1 година</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🔄 Мартингейл</div>
+
+      <div class="input-group">
+        <label>Максимальний рівень мартингейлу</label>
+        <select id="maxMartingale">
+          <option value="0">Без мартингейлу</option>
+          <option value="1">1 рівень</option>
+          <option value="2">2 рівні</option>
+          <option value="3" selected>3 рівні</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>Множник для фіксованої суми</label>
+        <input type="number" id="martingaleMultiplier" value="2.3" min="1.1" step="0.1">
+      </div>
+
+      <div class="input-group">
+        <label>Множник для відсотка</label>
+        <input type="number" id="martingaleMultiplierPercent" value="2.0" min="1.1" step="0.1">
+      </div>
+
+      <div class="toggle-group">
+        <span class="toggle-label">Глобальний мартингейл</span>
+        <div class="toggle-switch active" id="globalMartingaleToggle">
+          <div class="toggle-slider"></div>
+        </div>
+      </div>
+
+      <div id="martingaleLevelsContainer">
+        <label style="font-size: 12px; color: #00d9ff; margin-bottom: 10px; display: block;">Активні рівні:</label>
+        <div class="toggle-group">
+          <span class="toggle-label">Рівень 1</span>
+          <div class="toggle-switch active" data-level="1">
+            <div class="toggle-slider"></div>
+          </div>
+        </div>
+        <div class="toggle-group">
+          <span class="toggle-label">Рівень 2</span>
+          <div class="toggle-switch active" data-level="2">
+            <div class="toggle-slider"></div>
+          </div>
+        </div>
+        <div class="toggle-group">
+          <span class="toggle-label">Рівень 3</span>
+          <div class="toggle-switch active" data-level="3">
+            <div class="toggle-slider"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">📝 Логи</div>
-    <div class="logs-container" id="logsContainer">
-      <div class="empty-state">
-        Логи з'являться тут...
+  <!-- Open Trades Tab -->
+  <div class="tab-content" id="open-trades">
+    <div class="section">
+      <div class="section-title">📊 Відкриті угоди</div>
+      <div class="trades-list" id="openTradesList">
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <div>Немає відкритих угод</div>
+        </div>
       </div>
     </div>
-    <button class="btn btn-primary" id="clearLogs" style="margin-top: 8px;">🗑️ Очистити логи</button>
+  </div>
+
+  <!-- Closed Trades Tab -->
+  <div class="tab-content" id="closed-trades">
+    <div class="section">
+      <div class="section-title">📈 Закриті угоди</div>
+      <div class="filter-tabs">
+        <div class="filter-tab active" data-filter="all">Всі</div>
+        <div class="filter-tab" data-filter="win">Виграші</div>
+        <div class="filter-tab" data-filter="loss">Програші</div>
+      </div>
+      <div class="trades-list" id="closedTradesList">
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <div>Немає закритих угод</div>
+        </div>
+      </div>
+      <button class="btn refresh-btn" id="refreshClosedTrades">🔄 Оновити з сайту</button>
+    </div>
+  </div>
+
+  <!-- Logs Tab -->
+  <div class="tab-content" id="logs">
+    <div class="section">
+      <div class="section-title">📝 Логи системи</div>
+      <div class="logs-container" id="logsContainer">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div>Логи з'являться тут...</div>
+        </div>
+      </div>
+      <div class="control-buttons">
+        <button class="btn btn-primary" id="clearLogs">🗑️ Очистити</button>
+        <button class="btn refresh-btn" id="exportLogs">💾 Експорт</button>
+      </div>
+    </div>
   </div>
 
   <script src="popup.js"></script>
