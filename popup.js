@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   await updateLogs();
   setupEventListeners();
   setupTabs();
-  setupToggleSwitches();
 });
 
 // Налаштування вкладок
@@ -37,41 +36,6 @@ function setupTabs() {
   });
 }
 
-// Налаштування toggle switches
-function setupToggleSwitches() {
-  // Global Martingale Toggle
-  const globalMartingaleToggle = document.getElementById('globalMartingaleToggle');
-  globalMartingaleToggle.addEventListener('click', function() {
-    this.classList.toggle('active');
-    saveSettings();
-  });
-
-  // Martingale Level Toggles
-  const levelToggles = document.querySelectorAll('[data-level]');
-  levelToggles.forEach(toggle => {
-    toggle.addEventListener('click', function() {
-      this.classList.toggle('active');
-      saveSettings();
-    });
-  });
-
-  // Stake Type Toggle
-  const stakeType = document.getElementById('stakeType');
-  const fixedGroup = document.getElementById('fixedAmountGroup');
-  const percentGroup = document.getElementById('percentAmountGroup');
-
-  stakeType.addEventListener('change', () => {
-    if (stakeType.value === 'fixed') {
-      fixedGroup.style.display = 'block';
-      percentGroup.style.display = 'none';
-    } else {
-      fixedGroup.style.display = 'none';
-      percentGroup.style.display = 'block';
-    }
-    saveSettings();
-  });
-}
-
 // Завантаження збережених налаштувань
 async function loadSettings() {
   const settings = await chrome.storage.local.get([
@@ -82,12 +46,9 @@ async function loadSettings() {
     'maxMartingale',
     'martingaleMultiplier',
     'martingaleMultiplierPercent',
-    'globalMartingale',
-    'activeLevels',
-    'botActive',
-    'maxGlobalLevel',
     'globalMartingaleLevel',
-    'pairLosses'
+    'pairLosses',
+    'botActive'
   ]);
 
   if (settings.initialAmount) {
@@ -119,28 +80,6 @@ async function loadSettings() {
   }
   if (settings.martingaleMultiplierPercent) {
     document.getElementById('martingaleMultiplierPercent').value = settings.martingaleMultiplierPercent;
-  }
-
-  // Max Global Level
-  if (settings.maxGlobalLevel) {
-    document.getElementById('maxGlobalLevel').value = settings.maxGlobalLevel;
-  }
-
-  // Global Martingale Toggle
-  const globalMartingaleToggle = document.getElementById('globalMartingaleToggle');
-  if (settings.globalMartingale !== undefined && !settings.globalMartingale) {
-    globalMartingaleToggle.classList.remove('active');
-  }
-
-  // Active Levels
-  if (settings.activeLevels) {
-    const levelToggles = document.querySelectorAll('[data-level]');
-    levelToggles.forEach(toggle => {
-      const level = parseInt(toggle.dataset.level);
-      if (!settings.activeLevels.includes(level)) {
-        toggle.classList.remove('active');
-      }
-    });
   }
 
   // Оновити відображення стану мартингейлу
@@ -291,7 +230,6 @@ function setupEventListeners() {
   document.getElementById('maxMartingale').addEventListener('change', saveSettings);
   document.getElementById('martingaleMultiplier').addEventListener('change', saveSettings);
   document.getElementById('martingaleMultiplierPercent').addEventListener('change', saveSettings);
-  document.getElementById('maxGlobalLevel').addEventListener('change', saveSettings);
 
   // Запуск/зупинка бота
   document.getElementById('startBot').addEventListener('click', startBot);
@@ -326,16 +264,6 @@ function setupEventListeners() {
 
 // Збереження налаштувань
 async function saveSettings() {
-  const globalMartingaleToggle = document.getElementById('globalMartingaleToggle');
-  const levelToggles = document.querySelectorAll('[data-level]');
-
-  const activeLevels = [];
-  levelToggles.forEach(toggle => {
-    if (toggle.classList.contains('active')) {
-      activeLevels.push(parseInt(toggle.dataset.level));
-    }
-  });
-
   const settings = {
     initialAmount: parseFloat(document.getElementById('initialAmount').value),
     percentAmount: parseFloat(document.getElementById('percentAmount').value),
@@ -343,10 +271,7 @@ async function saveSettings() {
     defaultTimeframe: parseInt(document.getElementById('defaultTimeframe').value),
     maxMartingale: parseInt(document.getElementById('maxMartingale').value),
     martingaleMultiplier: parseFloat(document.getElementById('martingaleMultiplier').value),
-    martingaleMultiplierPercent: parseFloat(document.getElementById('martingaleMultiplierPercent').value),
-    globalMartingale: globalMartingaleToggle.classList.contains('active'),
-    activeLevels: activeLevels,
-    maxGlobalLevel: parseInt(document.getElementById('maxGlobalLevel').value)
+    martingaleMultiplierPercent: parseFloat(document.getElementById('martingaleMultiplierPercent').value)
   };
 
   await chrome.storage.local.set(settings);
@@ -377,18 +302,28 @@ async function stopBot() {
 
 // Відправка тестового сигналу
 async function sendTestSignal() {
+  // Отримуємо налаштування для таймфрейму
+  const settings = await chrome.storage.local.get(['defaultTimeframe']);
+  const timeframeMinutes = settings.defaultTimeframe || 5;
+
   const now = new Date();
   const entryTime = new Date(now.getTime() + 2 * 60000); // Через 2 хвилини
+
+  // Форматуємо таймфрейм
+  let timeframeStr = `${timeframeMinutes}M`;
+  if (timeframeMinutes >= 60) {
+    timeframeStr = `${Math.floor(timeframeMinutes / 60)}H`;
+  }
 
   const testSignal = {
     pair: 'EUR/USD',
     direction: 'CALL',
-    timeframe: '5M',
+    timeframe: timeframeStr,
     entryTime: formatTime(entryTime),
     martingaleLevels: [
-      { level: 1, time: formatTime(new Date(entryTime.getTime() + 5 * 60000)) },
-      { level: 2, time: formatTime(new Date(entryTime.getTime() + 10 * 60000)) },
-      { level: 3, time: formatTime(new Date(entryTime.getTime() + 15 * 60000)) }
+      { level: 1, time: formatTime(new Date(entryTime.getTime() + timeframeMinutes * 60000)) },
+      { level: 2, time: formatTime(new Date(entryTime.getTime() + timeframeMinutes * 2 * 60000)) },
+      { level: 3, time: formatTime(new Date(entryTime.getTime() + timeframeMinutes * 3 * 60000)) }
     ],
     isTestSignal: true
   };
@@ -398,8 +333,8 @@ async function sendTestSignal() {
     signal: testSignal
   });
 
-  addLog(`Тестовий сигнал відправлено! Угода буде відкрита о ${testSignal.entryTime}`, 'info');
-  alert('Тестовий сигнал відправлено! Угода буде відкрита о ' + testSignal.entryTime);
+  addLog(`Тестовий сигнал відправлено! Таймфрейм: ${timeframeStr}, угода о ${testSignal.entryTime}`, 'info');
+  alert(`Тестовий сигнал відправлено!\nТаймфрейм: ${timeframeStr}\nУгода буде відкрита о ${testSignal.entryTime}`);
 }
 
 // Оновлення закритих угод з сайту
@@ -1031,11 +966,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function updateMartingaleStatus() {
   const data = await chrome.storage.local.get(['globalMartingaleLevel', 'pairLosses']);
 
-  const globalLevel = data.globalMartingaleLevel || 5;
+  const globalLevel = data.globalMartingaleLevel || 1;
   const pairLosses = data.pairLosses || {};
 
-  // Підрахунок активних пар з програшами
-  const activePairs = Object.keys(pairLosses).length;
+  // Підрахунок активних пар з програшами (пар з 4 програшами)
+  const activePairs = Object.keys(pairLosses).filter(k => pairLosses[k] >= 1).length;
 
   // Оновлення відображення
   const currentGlobalLevelEl = document.getElementById('currentGlobalLevel');
@@ -1044,45 +979,49 @@ async function updateMartingaleStatus() {
   if (currentGlobalLevelEl) {
     currentGlobalLevelEl.textContent = globalLevel;
 
-    // Підсвітка якщо рівень високий
-    if (globalLevel >= 10) {
-      currentGlobalLevelEl.style.color = '#ff4444';
-    } else if (globalLevel >= 7) {
-      currentGlobalLevelEl.style.color = '#ffaa00';
+    // Підсвітка залежно від рівня
+    if (globalLevel >= 13) {
+      currentGlobalLevelEl.style.color = '#ff4444'; // Червоний для високих рівнів
+    } else if (globalLevel >= 9) {
+      currentGlobalLevelEl.style.color = '#ffaa00'; // Жовтий для середніх
+    } else if (globalLevel >= 5) {
+      currentGlobalLevelEl.style.color = '#00d9ff'; // Блакитний
     } else {
-      currentGlobalLevelEl.style.color = '#00d9ff';
+      currentGlobalLevelEl.style.color = '#00ff88'; // Зелений для низьких
     }
   }
 
   if (activePairLossesEl) {
     activePairLossesEl.textContent = activePairs;
 
-    // Підсвітка якщо багато пар
-    if (activePairs >= 5) {
-      activePairLossesEl.style.color = '#ff4444';
-    } else if (activePairs >= 3) {
-      activePairLossesEl.style.color = '#ffaa00';
+    // Підсвітка залежно від кількості пар
+    if (activePairs >= 3) {
+      activePairLossesEl.style.color = '#ff4444'; // Червоний - багато пар
+    } else if (activePairs >= 2) {
+      activePairLossesEl.style.color = '#ffaa00'; // Жовтий - середньо
+    } else if (activePairs >= 1) {
+      activePairLossesEl.style.color = '#00d9ff'; // Блакитний - одна пара
     } else {
-      activePairLossesEl.style.color = '#00ff88';
+      activePairLossesEl.style.color = '#00ff88'; // Зелений - жодної
     }
   }
 }
 
 // Скидання всіх лічильників мартингейлу
 async function resetMartingale() {
-  const confirmed = confirm('Скинути всі лічильники мартингейлу?\n\n• Глобальний рівень → 5\n• Всі програші пар → 0');
+  const confirmed = confirm('Скинути всі лічильники мартингейлу?\n\n• Глобальний рівень → 1\n• Всі програші пар → 0');
 
   if (!confirmed) return;
 
   await chrome.storage.local.set({
-    globalMartingaleLevel: 5,
+    globalMartingaleLevel: 1,
     pairLosses: {}
   });
 
   await updateMartingaleStatus();
-  await addLogToStorage('🔄 Лічильники мартингейлу скинуто', 'success');
+  await addLogToStorage('🔄 Лічильники мартингейлу скинуто до початкового стану', 'success');
 
-  alert('✅ Лічильники успішно скинуто!');
+  alert('✅ Лічильники успішно скинуто до рівня 1!');
 }
 
 // Допоміжна функція для додавання логу

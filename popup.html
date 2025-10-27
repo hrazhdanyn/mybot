@@ -683,24 +683,26 @@
     <div class="section">
       <div class="section-title">🔄 Мартингейл</div>
 
-      <!-- Інформаційний блок про двохрівневу систему -->
+      <!-- Інформаційний блок про систему мартингейлу -->
       <div style="background: linear-gradient(135deg, rgba(0, 217, 255, 0.05) 0%, rgba(102, 126, 234, 0.05) 100%); border-left: 4px solid #00d9ff; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
-        <div style="font-size: 11px; font-weight: 600; color: #00d9ff; margin-bottom: 6px;">📊 Двохрівнева система мартингейлу</div>
+        <div style="font-size: 11px; font-weight: 600; color: #00d9ff; margin-bottom: 6px;">📊 Система мартингейлу</div>
         <div style="font-size: 10px; color: #aaa; line-height: 1.6;">
-          <div style="margin-bottom: 4px;">• <strong>ФАЗА 1:</strong> До 4 програшів на парі - звичайний мартингейл</div>
-          <div style="margin-bottom: 4px;">• <strong>ФАЗА 2:</strong> Після 4 програшів - глобальний рівень 5-15</div>
+          <div style="margin-bottom: 4px;">• Кожна пара: до 4 програшів і 4 рівнів мартингейла</div>
+          <div style="margin-bottom: 4px;">• Після 4 програшів: очікуємо наступний сигнал</div>
+          <div style="margin-bottom: 4px;">• Наступна пара починається з рівня 5, потім 9, 13...</div>
+          <div style="margin-bottom: 4px;">• При виграші: скидання до початкової ціни</div>
           <div>• Мартингейл-угоди відкриваються НЕГАЙНО</div>
         </div>
       </div>
 
       <div class="input-group">
-        <label>Максимальний рівень мартингейлу на парі</label>
+        <label>Максимальний рівень мартингейлу (загальний)</label>
         <select id="maxMartingale">
           <option value="0">Без мартингейлу</option>
-          <option value="1">1 рівень</option>
-          <option value="2">2 рівні</option>
-          <option value="3">3 рівні</option>
-          <option value="4" selected>4 рівні</option>
+          <option value="4">4 рівні (1 пара)</option>
+          <option value="8">8 рівнів (2 пари)</option>
+          <option value="12">12 рівнів (3 пари)</option>
+          <option value="15" selected>15 рівнів (майже 4 пари)</option>
         </select>
       </div>
 
@@ -714,67 +716,23 @@
         <input type="number" id="martingaleMultiplierPercent" value="2.0" min="1.1" step="0.1">
       </div>
 
-      <div class="toggle-group">
-        <span class="toggle-label">Глобальний мартингейл (рівні 5-15)</span>
-        <div class="toggle-switch active" id="globalMartingaleToggle">
-          <div class="toggle-slider"></div>
+      <!-- Поточний стан мартингейлу -->
+      <div style="background: #0f1624; padding: 12px; border-radius: 8px; margin-top: 12px; border: 1px solid #2d3561;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 11px; color: #888;">Поточний глобальний рівень:</span>
+          <span id="currentGlobalLevel" style="font-size: 14px; font-weight: 700; color: #00d9ff;">1</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11px; color: #888;">Активних пар з програшами:</span>
+          <span id="activePairLosses" style="font-size: 14px; font-weight: 700; color: #ffaa00;">0</span>
         </div>
       </div>
 
-      <!-- Налаштування глобального мартингейлу -->
-      <div id="globalMartingaleSettings" style="margin-top: 12px;">
-        <div class="input-group">
-          <label>Максимальний глобальний рівень</label>
-          <input type="number" id="maxGlobalLevel" value="15" min="5" max="20" step="1">
-          <div style="font-size: 10px; color: #666; margin-top: 4px;">Рекомендовано: 15 (діапазон 5-20)</div>
-        </div>
-
-        <!-- Поточний стан глобального мартингейлу -->
-        <div style="background: #0f1624; padding: 12px; border-radius: 8px; margin-top: 12px; border: 1px solid #2d3561;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 11px; color: #888;">Поточний глобальний рівень:</span>
-            <span id="currentGlobalLevel" style="font-size: 14px; font-weight: 700; color: #00d9ff;">5</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11px; color: #888;">Активних пар з програшами:</span>
-            <span id="activePairLosses" style="font-size: 14px; font-weight: 700; color: #ffaa00;">0</span>
-          </div>
-        </div>
-
-        <button class="btn btn-danger" id="resetMartingale" style="margin-top: 12px; font-size: 12px;">
-          🔄 Скинути всі лічильники
-        </button>
-        <div style="font-size: 9px; color: #666; margin-top: 4px; text-align: center;">
-          Скине globalLevel до 5 та всі програші пар
-        </div>
-      </div>
-
-      <div id="martingaleLevelsContainer" style="margin-top: 16px;">
-        <label style="font-size: 12px; color: #00d9ff; margin-bottom: 10px; display: block;">Активні рівні (Фаза 1):</label>
-        <div class="toggle-group">
-          <span class="toggle-label">Рівень 1</span>
-          <div class="toggle-switch active" data-level="1">
-            <div class="toggle-slider"></div>
-          </div>
-        </div>
-        <div class="toggle-group">
-          <span class="toggle-label">Рівень 2</span>
-          <div class="toggle-switch active" data-level="2">
-            <div class="toggle-slider"></div>
-          </div>
-        </div>
-        <div class="toggle-group">
-          <span class="toggle-label">Рівень 3</span>
-          <div class="toggle-switch active" data-level="3">
-            <div class="toggle-slider"></div>
-          </div>
-        </div>
-        <div class="toggle-group">
-          <span class="toggle-label">Рівень 4</span>
-          <div class="toggle-switch active" data-level="4">
-            <div class="toggle-slider"></div>
-          </div>
-        </div>
+      <button class="btn btn-danger" id="resetMartingale" style="margin-top: 12px; font-size: 12px;">
+        🔄 Скинути всі лічильники
+      </button>
+      <div style="font-size: 9px; color: #666; margin-top: 4px; text-align: center;">
+        Скине globalLevel до 1 та всі програші пар
       </div>
     </div>
   </div>
