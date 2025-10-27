@@ -486,4 +486,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-console.log('✅ Monitor module v2.0 loaded');
+// Експортуємо функції в глобальну область видимості
+window.startTradeMonitoring = startTradeMonitoring;
+window.fetchClosedTradesFromSite = fetchClosedTradesFromSite;
+
+console.log('✅ Monitor module v2.0 loaded - functions available globally');

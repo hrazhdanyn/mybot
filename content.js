@@ -79,39 +79,59 @@ function wait(ms) {
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   await addLog(`📨 Команда: ${message.action}`, 'info');
-  
+
   try {
     if (message.action === 'ping') {
       sendResponse({ status: 'alive' });
       return true;
     }
-    
+
     if (message.action === 'diagnose') {
       const diagnostics = await getDiagnostics();
       sendResponse({ diagnostics });
       return true;
     }
-    
+
     if (message.action === 'openTrade') {
       await addLog(`═══════════════════════════════════`, 'success');
       await addLog(`🎯 ОТРИМАНО КОМАНДУ ВІДКРИТИ УГОДУ`, 'success');
       await addLog(`═══════════════════════════════════`, 'success');
-      
+
+      // Перевіряємо чи завантажився content-trade.js
+      if (typeof openTrade !== 'function') {
+        await addLog(`⚠️ Очікуємо завантаження content-trade.js...`, 'warning');
+
+        // Чекаємо до 5 секунд поки завантажиться
+        let attempts = 0;
+        while (typeof openTrade !== 'function' && attempts < 10) {
+          await wait(500);
+          attempts++;
+        }
+
+        if (typeof openTrade !== 'function') {
+          await addLog(`❌ content-trade.js не завантажився!`, 'error');
+          sendResponse({ status: 'error', message: 'content-trade.js not loaded' });
+          return true;
+        }
+
+        await addLog(`✅ content-trade.js завантажено`, 'success');
+      }
+
       // Викликаємо функцію з content-trade.js
       openTrade(message.trade).catch(err => {
         addLog(`❌ Критична помилка: ${err.message}`, 'error');
         console.error(err);
       });
-      
+
       sendResponse({ status: 'started' });
       return true;
     }
-    
+
   } catch (error) {
     await addLog(`❌ Помилка обробки: ${error.message}`, 'error');
     console.error(error);
   }
-  
+
   return true;
 });
 

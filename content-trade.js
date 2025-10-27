@@ -452,3 +452,12 @@ async function checkPayout() {
   await addLog(`   ⚠️ Не знайдено інформацію про виплату`, 'warning');
   return 0;
 }
+
+// Експортуємо функції в глобальну область видимості
+window.openTrade = openTrade;
+window.selectAsset = selectAsset;
+window.setTimeframe = setTimeframe;
+window.setAmount = setAmount;
+window.checkPayout = checkPayout;
+
+console.log('✅ content-trade.js loaded - openTrade available globally');
