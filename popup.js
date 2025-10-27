@@ -84,7 +84,10 @@ async function loadSettings() {
     'martingaleMultiplierPercent',
     'globalMartingale',
     'activeLevels',
-    'botActive'
+    'botActive',
+    'maxGlobalLevel',
+    'globalMartingaleLevel',
+    'pairLosses'
   ]);
 
   if (settings.initialAmount) {
@@ -118,6 +121,11 @@ async function loadSettings() {
     document.getElementById('martingaleMultiplierPercent').value = settings.martingaleMultiplierPercent;
   }
 
+  // Max Global Level
+  if (settings.maxGlobalLevel) {
+    document.getElementById('maxGlobalLevel').value = settings.maxGlobalLevel;
+  }
+
   // Global Martingale Toggle
   const globalMartingaleToggle = document.getElementById('globalMartingaleToggle');
   if (settings.globalMartingale !== undefined && !settings.globalMartingale) {
@@ -134,6 +142,9 @@ async function loadSettings() {
       }
     });
   }
+
+  // Оновити відображення стану мартингейлу
+  await updateMartingaleStatus();
 }
 
 // Оновлення UI
@@ -280,6 +291,7 @@ function setupEventListeners() {
   document.getElementById('maxMartingale').addEventListener('change', saveSettings);
   document.getElementById('martingaleMultiplier').addEventListener('change', saveSettings);
   document.getElementById('martingaleMultiplierPercent').addEventListener('change', saveSettings);
+  document.getElementById('maxGlobalLevel').addEventListener('change', saveSettings);
 
   // Запуск/зупинка бота
   document.getElementById('startBot').addEventListener('click', startBot);
@@ -296,6 +308,9 @@ function setupEventListeners() {
 
   // Оновлення закритих угод
   document.getElementById('refreshClosedTrades').addEventListener('click', refreshClosedTrades);
+
+  // Скидання мартингейлу
+  document.getElementById('resetMartingale').addEventListener('click', resetMartingale);
 
   // Фільтри для закритих угод
   const filterTabs = document.querySelectorAll('.filter-tab');
@@ -330,7 +345,8 @@ async function saveSettings() {
     martingaleMultiplier: parseFloat(document.getElementById('martingaleMultiplier').value),
     martingaleMultiplierPercent: parseFloat(document.getElementById('martingaleMultiplierPercent').value),
     globalMartingale: globalMartingaleToggle.classList.contains('active'),
-    activeLevels: activeLevels
+    activeLevels: activeLevels,
+    maxGlobalLevel: parseInt(document.getElementById('maxGlobalLevel').value)
   };
 
   await chrome.storage.local.set(settings);
@@ -1011,6 +1027,83 @@ document.addEventListener('DOMContentLoaded', () => {
   initWebhook();
 });
 
+// Оновлення статусу мартингейлу
+async function updateMartingaleStatus() {
+  const data = await chrome.storage.local.get(['globalMartingaleLevel', 'pairLosses']);
+
+  const globalLevel = data.globalMartingaleLevel || 5;
+  const pairLosses = data.pairLosses || {};
+
+  // Підрахунок активних пар з програшами
+  const activePairs = Object.keys(pairLosses).length;
+
+  // Оновлення відображення
+  const currentGlobalLevelEl = document.getElementById('currentGlobalLevel');
+  const activePairLossesEl = document.getElementById('activePairLosses');
+
+  if (currentGlobalLevelEl) {
+    currentGlobalLevelEl.textContent = globalLevel;
+
+    // Підсвітка якщо рівень високий
+    if (globalLevel >= 10) {
+      currentGlobalLevelEl.style.color = '#ff4444';
+    } else if (globalLevel >= 7) {
+      currentGlobalLevelEl.style.color = '#ffaa00';
+    } else {
+      currentGlobalLevelEl.style.color = '#00d9ff';
+    }
+  }
+
+  if (activePairLossesEl) {
+    activePairLossesEl.textContent = activePairs;
+
+    // Підсвітка якщо багато пар
+    if (activePairs >= 5) {
+      activePairLossesEl.style.color = '#ff4444';
+    } else if (activePairs >= 3) {
+      activePairLossesEl.style.color = '#ffaa00';
+    } else {
+      activePairLossesEl.style.color = '#00ff88';
+    }
+  }
+}
+
+// Скидання всіх лічильників мартингейлу
+async function resetMartingale() {
+  const confirmed = confirm('Скинути всі лічильники мартингейлу?\n\n• Глобальний рівень → 5\n• Всі програші пар → 0');
+
+  if (!confirmed) return;
+
+  await chrome.storage.local.set({
+    globalMartingaleLevel: 5,
+    pairLosses: {}
+  });
+
+  await updateMartingaleStatus();
+  await addLogToStorage('🔄 Лічильники мартингейлу скинуто', 'success');
+
+  alert('✅ Лічильники успішно скинуто!');
+}
+
+// Допоміжна функція для додавання логу
+async function addLogToStorage(message, type = 'info') {
+  const timestamp = new Date().toLocaleTimeString('uk-UA');
+  const data = await chrome.storage.local.get('logs');
+  const logs = data.logs || [];
+
+  logs.push({
+    time: timestamp,
+    message: `[POPUP] ${message}`,
+    type: type
+  });
+
+  if (logs.length > 150) {
+    logs.shift();
+  }
+
+  await chrome.storage.local.set({ logs });
+}
+
 // Оновлення UI кожні 2 секунди
 setInterval(async () => {
   await updateUI();
@@ -1026,5 +1119,11 @@ setInterval(async () => {
   const webhookTab = document.getElementById('webhook');
   if (webhookTab.classList.contains('active')) {
     await loadWebhookHistory();
+  }
+
+  // Оновлюємо стан мартингейлу якщо вкладка налаштувань активна
+  const settingsTab = document.getElementById('settings');
+  if (settingsTab.classList.contains('active')) {
+    await updateMartingaleStatus();
   }
 }, 2000);

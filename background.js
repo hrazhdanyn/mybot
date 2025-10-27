@@ -318,81 +318,152 @@ async function executeTrade(trade) {
 async function handleTradeResult(result) {
   console.log('Trade result:', result);
   await addLog(`📊 Результат угоди: ${result.win ? 'ВИГРАШ' : 'ПРОГРАШ'}`, result.win ? 'success' : 'error');
-  
+
   const settings = await chrome.storage.local.get([
     'maxMartingale',
     'martingaleMultiplier',
     'martingaleMultiplierPercent',
     'initialAmount',
+    'percentAmount',
     'stakeType',
     'globalMartingale',
-    'activeLevels'
+    'activeLevels',
+    'globalMartingaleLevel',
+    'pairLosses',
+    'maxGlobalLevel'
   ]);
-  
+
   // Розрахунок прибутку
   const profitPercent = 0.92; // 92% виплата
   const profit = result.win ? result.amount * profitPercent : -result.amount;
-  
+
   await updateStats(result.win, profit);
+
+  // Отримуємо інформацію про угоду
+  const trade = await getTradeById(result.tradeId);
+
+  if (!trade) {
+    await addLog(`⚠️ Угоду не знайдено в активних`, 'warning');
+    await removeFromActiveTrades(result.tradeId);
+    return;
+  }
+
+  const pairKey = `${trade.pair}_${trade.direction}_${trade.timeframe}`;
+  let pairLosses = settings.pairLosses || {};
+  let globalLevel = settings.globalMartingaleLevel || 5;
+  const maxGlobalLevel = settings.maxGlobalLevel || 15;
   
   if (result.win) {
-    // Угода виграна - видаляємо з активних
+    // ВИГРАШ - скидаємо лічильник програшів для цієї пари
     await addLog(`✅ Серія завершена успішно`, 'success');
+
+    // Скидаємо програші для цієї пари
+    if (pairLosses[pairKey]) {
+      await addLog(`🔄 Скидаємо лічильник програшів для ${pairKey}`, 'info');
+      delete pairLosses[pairKey];
+      await chrome.storage.local.set({ pairLosses });
+    }
+
     await removeFromActiveTrades(result.tradeId);
   } else {
-    // Угода програна - перевіряємо мартингейл
-    const trade = await getTradeById(result.tradeId);
-    
-    if (!trade) {
-      await addLog(`⚠️ Угоду не знайдено в активних`, 'warning');
-      return;
-    }
-    
-    await addLog(`   Поточний рівень: ${trade.martingaleLevel}`, 'info');
-    await addLog(`   Всього рівнів: ${trade.martingaleLevels ? trade.martingaleLevels.length : 0}`, 'info');
-    
-    // Перевіряємо чи є наступний рівень мартингейлу
-    if (trade.martingaleLevels && trade.martingaleLevel < trade.martingaleLevels.length) {
-      const nextLevel = trade.martingaleLevels[trade.martingaleLevel];
+    // ПРОГРАШ - збільшуємо лічильник та перевіряємо мартингейл
+    const currentPairLosses = pairLosses[pairKey] || 0;
+    const newPairLosses = currentPairLosses + 1;
 
-      // Перевіряємо чи увімкнений цей рівень
-      const activeLevels = settings.activeLevels || [1, 2, 3];
-      const levelEnabled = activeLevels.includes(nextLevel.level);
+    pairLosses[pairKey] = newPairLosses;
+    await chrome.storage.local.set({ pairLosses });
 
-      if (levelEnabled) {
-        await addLog(`🔄 Запуск мартингейл рівень ${nextLevel.level}`, 'warning');
-        
-        const martingaleTrade = {
-          ...trade,
-          id: generateId(),
-          martingaleLevel: nextLevel.level,
-          amount: nextLevel.amount,
-          entryTime: nextLevel.time,
-          status: 'scheduled'
-        };
-        
-        scheduledTrades.push(martingaleTrade);
-        await addToActiveTrades(martingaleTrade);
-        await updateScheduledTradesInStorage();
-        
-        await addLog(`   Рівень ${nextLevel.level}: ${nextLevel.amount} (${trade.stakeType})`, 'info');
-        console.log('Martingale level scheduled:', martingaleTrade);
-      } else {
-        await addLog(`⚠️ Рівень ${nextLevel.level} вимкнений - пропускаємо`, 'warning');
-      }
+    await addLog(`📉 Програшів на ${pairKey}: ${newPairLosses}`, 'error');
+
+    // Визначаємо базову ставку
+    let baseAmount;
+    if (trade.stakeType === 'percent') {
+      baseAmount = settings.percentAmount || 1;
     } else {
-      // Всі рівні мартингейлу вичерпані
-      if (settings.globalMartingale) {
-        await addLog(`🔴 Всі рівні мартингейлу програні`, 'error');
-        await addLog(`⏳ ГЛОБАЛЬНИЙ МАРТИНГЕЙЛ: Очікуємо наступний сигнал`, 'warning');
-        await addLog(`   Для цієї пари не знижуємо ставку`, 'info');
-        // Просто видаляємо з активних - наступний сигнал почне з початкової ставки
-      } else {
-        await addLog(`❌ Серія програна, мартингейл вичерпано`, 'error');
-      }
+      baseAmount = settings.initialAmount || 100;
     }
-    
-    // Видаляємо програну угоду з активних
+
+    const multiplier = trade.stakeType === 'percent'
+      ? settings.martingaleMultiplierPercent || 2.0
+      : settings.martingaleMultiplier || 2.3;
+
+    if (newPairLosses <= 4) {
+      // ФАЗА 1: До 4 програшів на парі - звичайний мартингейл
+      await addLog(`🔄 Мартингейл на парі: рівень ${newPairLosses}/4`, 'warning');
+
+      const martingaleAmount = baseAmount * Math.pow(multiplier, newPairLosses);
+
+      // Створюємо нову угоду на ту саму пару/напрямок/таймфрейм
+      // Відкриваємо НЕГАЙНО (без очікування часу з сигналу)
+      const martingaleTrade = {
+        id: generateId(),
+        pair: trade.pair,
+        direction: trade.direction,
+        timeframe: trade.timeframe,
+        amount: martingaleAmount,
+        stakeType: trade.stakeType,
+        entryTime: { hours: new Date().getHours(), minutes: new Date().getMinutes() },
+        martingaleLevel: newPairLosses,
+        status: 'scheduled',
+        pairKey: pairKey
+      };
+
+      scheduledTrades.push(martingaleTrade);
+      await addToActiveTrades(martingaleTrade);
+      await updateScheduledTradesInStorage();
+
+      await addLog(`   Сума: ${martingaleAmount.toFixed(2)} ${trade.stakeType === 'percent' ? '%' : '₴'}`, 'info');
+      await addLog(`   Відкриваємо ЗАРАЗ (ігноруємо час з сигналу)`, 'info');
+
+      // Виконуємо негайно
+      await executeTrade(martingaleTrade);
+    } else {
+      // ФАЗА 2: Після 4 програшів - переходимо на глобальний рівень 5-15
+      await addLog(`🌍 Перехід на ГЛОБАЛЬНИЙ МАРТИНГЕЙЛ рівень ${globalLevel}`, 'warning');
+
+      if (globalLevel >= maxGlobalLevel) {
+        await addLog(`❌ Досягнуто максимальний рівень ${maxGlobalLevel}`, 'error');
+        await addLog(`🛑 ЗУПИНКА серії для ${pairKey}`, 'error');
+
+        // Скидаємо для цієї пари
+        delete pairLosses[pairKey];
+        await chrome.storage.local.set({ pairLosses });
+
+        await removeFromActiveTrades(result.tradeId);
+        return;
+      }
+
+      const globalAmount = baseAmount * Math.pow(multiplier, globalLevel);
+
+      const martingaleTrade = {
+        id: generateId(),
+        pair: trade.pair,
+        direction: trade.direction,
+        timeframe: trade.timeframe,
+        amount: globalAmount,
+        stakeType: trade.stakeType,
+        entryTime: { hours: new Date().getHours(), minutes: new Date().getMinutes() },
+        martingaleLevel: globalLevel,
+        isGlobalMartingale: true,
+        status: 'scheduled',
+        pairKey: pairKey
+      };
+
+      // Збільшуємо глобальний рівень для наступного разу
+      globalLevel++;
+      await chrome.storage.local.set({ globalMartingaleLevel: globalLevel });
+
+      scheduledTrades.push(martingaleTrade);
+      await addToActiveTrades(martingaleTrade);
+      await updateScheduledTradesInStorage();
+
+      await addLog(`   Сума: ${globalAmount.toFixed(2)} ${trade.stakeType === 'percent' ? '%' : '₴'}`, 'info');
+      await addLog(`   Наступний глобальний рівень: ${globalLevel}`, 'info');
+
+      // Виконуємо негайно
+      await executeTrade(martingaleTrade);
+    }
+
     await removeFromActiveTrades(result.tradeId);
   }
 }
@@ -504,18 +575,21 @@ async function updateScheduledTradesInStorage() {
 // Ініціалізація при встановленні розширення
 chrome.runtime.onInstalled.addListener(() => {
   console.log('PocketOption Bot installed');
-  
+
   chrome.storage.local.set({
     botActive: false,
     stakeType: 'fixed',
     initialAmount: 100,
     percentAmount: 1,
     defaultTimeframe: 5,
-    maxMartingale: 3,
+    maxMartingale: 4,  // Змінено з 3 на 4 для двохрівневої системи
     martingaleMultiplier: 2.3,
     martingaleMultiplierPercent: 2.0,
     globalMartingale: true,
-    activeLevels: [1, 2, 3],
+    activeLevels: [1, 2, 3, 4],  // Додано рівень 4
+    globalMartingaleLevel: 5,
+    maxGlobalLevel: 15,
+    pairLosses: {},
     trades: [],
     scheduledTrades: [],
     stats: { total: 0, wins: 0, losses: 0, profit: 0 },

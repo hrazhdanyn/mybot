@@ -24,6 +24,17 @@ async function openTrade(trade) {
         return;
       }
       await addLog(`✅ ПАРА OK`, 'success');
+
+      // Перевірка виплати (payout)
+      await addLog(`📍 Перевірка виплати...`, 'info');
+      const payout = await checkPayout();
+      if (payout < 70) {
+        await addLog(`❌ Виплата надто низька: ${payout}% (мінімум 70%)`, 'error');
+        await addLog(`⏭️ Пропускаємо цю угоду, чекаємо наступну`, 'warning');
+        notifyTradeResult(trade, false);
+        return;
+      }
+      await addLog(`✅ Виплата OK: ${payout}%`, 'success');
     }
     await wait(1000);
     
@@ -384,12 +395,12 @@ async function setAmount(amount) {
 async function clickTradeButton(direction) {
   const isBuy = direction === 'CALL' || direction === 'BUY';
   const searchText = isBuy ? 'BUY' : 'SELL';
-  
+
   const switchItems = document.querySelectorAll('span.switch-state-block__item');
-  
+
   for (const item of switchItems) {
     const text = item.textContent.trim().toUpperCase();
-    
+
     if (text === searchText) {
       await addLog(`   ✅ ${searchText}`, 'success');
       item.click();
@@ -397,16 +408,16 @@ async function clickTradeButton(direction) {
       return true;
     }
   }
-  
+
   const allSpans = document.querySelectorAll('span');
-  
+
   for (const span of allSpans) {
     const text = span.textContent.trim().toUpperCase();
-    
+
     if (text === searchText) {
       const rect = span.getBoundingClientRect();
       const styles = window.getComputedStyle(span);
-      
+
       if (styles.display !== 'none' && rect.width > 0) {
         await addLog(`   ✅ ${searchText} (span)`, 'success');
         span.click();
@@ -415,7 +426,29 @@ async function clickTradeButton(direction) {
       }
     }
   }
-  
+
   await addLog(`   ❌ ${searchText} не знайдено`, 'error');
   return false;
+}
+
+async function checkPayout() {
+  // Шукаємо елемент з класом value__val-start який показує виплату
+  const payoutElements = document.querySelectorAll('.value__val-start');
+
+  for (const element of payoutElements) {
+    const text = element.textContent.trim();
+
+    // Витягуємо число з тексту (наприклад: "92%" -> 92)
+    const match = text.match(/(\d+)%?/);
+
+    if (match) {
+      const payout = parseInt(match[1]);
+      await addLog(`   Знайдено виплату: ${payout}%`, 'info');
+      return payout;
+    }
+  }
+
+  // Якщо не знайшли - повертаємо 0 (буде заблоковано)
+  await addLog(`   ⚠️ Не знайдено інформацію про виплату`, 'warning');
+  return 0;
 }
