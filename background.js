@@ -120,7 +120,7 @@ async function stopBot() {
 // Обробка сигналу
 async function processSignal(signal) {
   await addLog(`📥 Отримано сигнал: ${signal.pair} ${signal.direction}`, 'info');
-  
+
   const settings = await chrome.storage.local.get([
     'stakeType',
     'initialAmount',
@@ -128,17 +128,16 @@ async function processSignal(signal) {
     'maxMartingale',
     'martingaleMultiplier',
     'martingaleMultiplierPercent',
-    'globalMartingale',
-    'activeLevels',
-    'botActive'
+    'botActive',
+    'globalMartingaleLevel'
   ]);
-  
+
   if (!settings.botActive) {
     await addLog('⚠️ Бот не активний! Сигнал проігноровано', 'warning');
     console.log('Bot is not active, ignoring signal');
     return;
   }
-  
+
   // Конвертація часу
   let entryTimeKyiv;
   if (signal.isTestSignal) {
@@ -149,9 +148,11 @@ async function processSignal(signal) {
     entryTimeKyiv = convertNYtoKyiv(entryTimeNY);
     await addLog(`⏰ Час входу: ${signal.entryTime} (NY) → ${formatTimeString(entryTimeKyiv)} (Київ)`, 'info');
   }
-  
-  // Визначаємо базову ставку
+
+  // Визначаємо базову ставку або використовуємо поточний глобальний рівень
+  const globalLevel = settings.globalMartingaleLevel || 1;
   let baseAmount;
+
   if (settings.stakeType === 'percent') {
     baseAmount = settings.percentAmount || 1;
     await addLog(`💰 Тип ставки: ${baseAmount}% від депозиту`, 'info');
@@ -159,70 +160,60 @@ async function processSignal(signal) {
     baseAmount = settings.initialAmount || 100;
     await addLog(`💰 Тип ставки: ${baseAmount} ₴ (фіксована)`, 'info');
   }
-  
+
+  // Якщо є незавершені пари (globalLevel > 1), починаємо з поточного рівня
+  let tradeAmount = baseAmount;
+  let martingaleLevel = 0;
+
+  if (globalLevel > 1) {
+    const multiplier = settings.stakeType === 'percent'
+      ? settings.martingaleMultiplierPercent || 2.0
+      : settings.martingaleMultiplier || 2.3;
+
+    // Віднімаємо 1 тому що globalLevel вже вказує на НАСТУПНИЙ рівень
+    martingaleLevel = globalLevel - 1;
+    tradeAmount = baseAmount * Math.pow(multiplier, martingaleLevel);
+
+    await addLog(`🔄 Продовження мартингейлу: рівень ${globalLevel} (після попередніх програшів)`, 'warning');
+    await addLog(`💰 Сума з урахуванням мартингейлу: ${tradeAmount.toFixed(2)} ${settings.stakeType === 'percent' ? '%' : '₴'}`, 'info');
+  }
+
   const trade = {
     id: generateId(),
     pair: signal.pair,
     direction: signal.direction,
     timeframe: signal.timeframe,
-    amount: baseAmount,
+    amount: tradeAmount,
     stakeType: settings.stakeType || 'fixed',
     entryTime: entryTimeKyiv,
-    martingaleLevel: 0,
-    martingaleLevels: [],
+    martingaleLevel: martingaleLevel,
     status: 'scheduled'
   };
-  
+
   await addLog(`⏱️ Таймфрейм: ${trade.timeframe}`, 'info');
-  
-  // Додавання рівнів мартингейлу
-  if (signal.martingaleLevels && settings.maxMartingale > 0) {
-    const activeLevels = settings.activeLevels || [1, 2, 3];
-    const multiplier = settings.stakeType === 'percent'
-      ? settings.martingaleMultiplierPercent || 2.0
-      : settings.martingaleMultiplier || 2.3;
 
-    await addLog(`🔄 Мартингейл: макс ${settings.maxMartingale} рівнів, множник ${multiplier}`, 'info');
-
-    signal.martingaleLevels.forEach(async (ml, index) => {
-      if (index < settings.maxMartingale && activeLevels.includes(ml.level)) {
-        let mlTimeKyiv;
-        if (signal.isTestSignal) {
-          mlTimeKyiv = parseTimeString(ml.time);
-        } else {
-          const mlTimeNY = parseTimeString(ml.time);
-          mlTimeKyiv = convertNYtoKyiv(mlTimeNY);
-        }
-        
-        trade.martingaleLevels.push({
-          level: ml.level,
-          time: mlTimeKyiv,
-          amount: baseAmount * Math.pow(multiplier, ml.level),
-          enabled: true
-        });
-        
-        await addLog(`   Рівень ${ml.level}: ${(baseAmount * Math.pow(multiplier, ml.level)).toFixed(2)}`, 'info');
-      }
-    });
-    
-    if (settings.globalMartingale) {
-      await addLog(`   Глобальний мартингейл: УВІМКНЕНО`, 'info');
-    }
-  }
-  
   scheduledTrades.push(trade);
   await addLog(`✅ Угоду заплановано на ${formatTimeString(entryTimeKyiv)}`, 'success');
   await addLog(`📊 Всього запланованих угод: ${scheduledTrades.length}`, 'info');
-  
+
   await addToActiveTrades(trade);
   await updateScheduledTradesInStorage();
-  
+
   console.log('Signal processed:', trade);
 }
 
 // Перевірка запланованих угод
 async function checkScheduledTrades() {
+  // Логуємо навіть якщо немає угод (кожні 10 викликів = кожні 50 сек)
+  if (!checkScheduledTrades.counter) checkScheduledTrades.counter = 0;
+  checkScheduledTrades.counter++;
+
   if (scheduledTrades.length === 0) {
+    if (checkScheduledTrades.counter % 10 === 0) {
+      const now = new Date();
+      const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      await addLog(`🔍 Перевірка: час ${currentTimeStr}, запланованих угод: 0`, 'info');
+    }
     return;
   }
 
