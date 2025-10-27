@@ -43,6 +43,28 @@ function wait(ms) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ЕКСПОРТ ФУНКЦІЙ В ГЛОБАЛЬНУ ОБЛАСТЬ ВИДИМОСТІ
+// ═══════════════════════════════════════════════════════════
+
+// Експортуємо функції для використання в content-trade.js та content-monitor.js
+window.addLog = addLog;
+window.wait = wait;
+
+// Робимо глобальні змінні доступними (але оновлюємо напряму, не через window)
+// Це дозволяє всім модулям працювати з однаковими змінними
+Object.defineProperty(window, 'currentTrade', {
+  get: () => currentTrade,
+  set: (value) => { currentTrade = value; }
+});
+
+Object.defineProperty(window, 'tradeMonitorInterval', {
+  get: () => tradeMonitorInterval,
+  set: (value) => { tradeMonitorInterval = value; }
+});
+
+console.log('✅ content.js loaded - addLog, wait and global variables available');
+
+// ═══════════════════════════════════════════════════════════
 // ІНІЦІАЛІЗАЦІЯ
 // ═══════════════════════════════════════════════════════════
 
