@@ -24,11 +24,14 @@ async function addLog(message, type = 'info') {
 
 // Слухач повідомлень
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('[BACKGROUND] Отримано повідомлення:', message.action, message);
+
   if (message.action === 'startBot') {
     startBot();
   } else if (message.action === 'stopBot') {
     stopBot();
   } else if (message.action === 'processSignal') {
+    console.log('[BACKGROUND] Викликаю processSignal з сигналом:', message.signal);
     processSignal(message.signal);
   } else if (message.action === 'tradeResult') {
     handleTradeResult(message.result);
@@ -119,6 +122,7 @@ async function stopBot() {
 
 // Обробка сигналу
 async function processSignal(signal) {
+  console.log('=== processSignal викликано ===', signal);
   await addLog(`📥 Отримано сигнал: ${signal.pair} ${signal.direction}`, 'info');
 
   const settings = await chrome.storage.local.get([
@@ -131,6 +135,9 @@ async function processSignal(signal) {
     'botActive',
     'globalMartingaleLevel'
   ]);
+
+  console.log('Bot settings:', settings);
+  await addLog(`⚙️ Бот активний: ${settings.botActive}`, 'info');
 
   if (!settings.botActive) {
     await addLog('⚠️ Бот не активний! Сигнал проігноровано', 'warning');

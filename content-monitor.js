@@ -219,44 +219,57 @@ async function findAndCheckInClosed(tradeInfo) {
       const direction = tradeInfo.direction.toUpperCase();
       
       // КРОК 4: Перевірка результату - шукаємо .centered
-      // Виграш показується у class="centered" зеленим кольором
-      // Програш показується у class="centered" червоним кольором
+      // class="centered" показує ПРИБУТОК:
+      // - Виграш: "+92$" або "+84.64$" (зелений колір, є знак +)
+      // - Програш: "0$" (червоний колір, немає знаку +)
+      // - НЕ ПЛУТАТИ з price-up: "+92%" (це payout - виплата, а не результат!)
       const centeredElements = nextElement.querySelectorAll('.centered');
 
       for (const centered of centeredElements) {
         const text = centered.textContent.trim();
         const color = window.getComputedStyle(centered).color;
 
-        // Перевіряємо колір або текст
-        // Зелений колір (rgb(0, 255, 136) або подібний) = виграш
-        // Червоний колір (rgb(255, 68, 68) або подібний) = програш
+        await addLog(`      Перевіряю centered: "${text}", колір: ${color}`, 'info');
 
-        if (text.includes('+') || color.includes('0, 255') || color.includes('green')) {
-          await addLog(`   ✅ ВИГРАШ: ${text}`, 'success');
+        // Витягуємо число з тексту
+        const match = text.match(/([+-]?)(\d+(?:\.\d+)?)/);
+
+        if (match) {
+          const sign = match[1]; // '+' або '-' або ''
+          const amount = parseFloat(match[2]);
+
+          // ВИГРАШ: є знак + перед числом (наприклад: "+92$" або "+84.64$")
+          if (sign === '+' && amount > 0) {
+            await addLog(`   ✅ ВИГРАШ: ${text} (знайдено + перед числом)`, 'success');
+            return true;
+          }
+
+          // ПРОГРАШ: число 0 або немає знаку + (наприклад: "0$")
+          if (sign === '' && amount === 0) {
+            await addLog(`   ❌ ПРОГРАШ: ${text} (0 без знаку +)`, 'error');
+            return false;
+          }
+
+          // Також програш якщо є мінус
+          if (sign === '-') {
+            await addLog(`   ❌ ПРОГРАШ: ${text} (є знак -)`, 'error');
+            return false;
+          }
+        }
+
+        // Додаткова перевірка за кольором (fallback)
+        if (color.includes('0, 255') || color.includes('green')) {
+          await addLog(`   ✅ ВИГРАШ за кольором: ${text}`, 'success');
           return true;
         }
 
-        if (text.includes('-') || color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
-          await addLog(`   ❌ ПРОГРАШ: ${text}`, 'error');
+        if (color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
+          await addLog(`   ❌ ПРОГРАШ за кольором: ${text}`, 'error');
           return false;
         }
       }
 
-      // Якщо не знайшли через .centered - пробуємо старий метод
-      const priceUp = nextElement.querySelector('.price-up, [class*="price-up"]');
-      const priceDown = nextElement.querySelector('.price-down, [class*="price-down"]');
-
-      if (priceUp) {
-        const amount = priceUp.textContent.trim();
-        await addLog(`   ✅ price-up: ${amount}`, 'success');
-        return true;
-      }
-
-      if (priceDown) {
-        const amount = priceDown.textContent.trim();
-        await addLog(`   ❌ price-down: ${amount}`, 'error');
-        return false;
-      }
+      // НЕ використовуємо price-up/price-down тому що це payout, а не результат!
       
       nextElement = nextElement.nextElementSibling;
     }
@@ -285,30 +298,39 @@ async function findAndCheckInClosed(tradeInfo) {
         const centeredText = centered.textContent.trim();
         const color = window.getComputedStyle(centered).color;
 
-        if (centeredText.includes('+') || color.includes('0, 255') || color.includes('green')) {
-          await addLog(`   [${i}] ✅ ВИГРАШ`, 'success');
+        // Витягуємо число з тексту
+        const match = centeredText.match(/([+-]?)(\d+(?:\.\d+)?)/);
+
+        if (match) {
+          const sign = match[1];
+          const amount = parseFloat(match[2]);
+
+          // ВИГРАШ: є знак + перед числом
+          if (sign === '+' && amount > 0) {
+            await addLog(`   [${i}] ✅ ВИГРАШ: ${centeredText}`, 'success');
+            return true;
+          }
+
+          // ПРОГРАШ: число 0 без знаку + або є мінус
+          if ((sign === '' && amount === 0) || sign === '-') {
+            await addLog(`   [${i}] ❌ ПРОГРАШ: ${centeredText}`, 'error');
+            return false;
+          }
+        }
+
+        // Додаткова перевірка за кольором
+        if (color.includes('0, 255') || color.includes('green')) {
+          await addLog(`   [${i}] ✅ ВИГРАШ за кольором`, 'success');
           return true;
         }
 
-        if (centeredText.includes('-') || color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
-          await addLog(`   [${i}] ❌ ПРОГРАШ`, 'error');
+        if (color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
+          await addLog(`   [${i}] ❌ ПРОГРАШ за кольором`, 'error');
           return false;
         }
       }
 
-      // Fallback до старого методу
-      const priceUp = deal.querySelector('.price-up, [class*="price-up"]');
-      const priceDown = deal.querySelector('.price-down, [class*="price-down"]');
-
-      if (priceUp) {
-        await addLog(`   [${i}] ✅ ВИГРАШ`, 'success');
-        return true;
-      }
-
-      if (priceDown) {
-        await addLog(`   [${i}] ❌ ПРОГРАШ`, 'error');
-        return false;
-      }
+      // НЕ використовуємо price-up/price-down (це payout, а не результат)
     }
   }
   
@@ -382,6 +404,7 @@ async function fetchClosedTradesFromSite() {
         }
 
         // Визначаємо результат (виграш/програш) через .centered
+        // centered показує ПРИБУТОК: "+92$" (виграш) або "0$" (програш)
         const centeredElements = item.querySelectorAll('.centered');
 
         let status = 'unknown';
@@ -391,36 +414,43 @@ async function fetchClosedTradesFromSite() {
           const centeredText = centered.textContent.trim();
           const color = window.getComputedStyle(centered).color;
 
-          // Виграш - зелений колір або +
-          if (centeredText.includes('+') || color.includes('0, 255') || color.includes('green')) {
+          // Витягуємо число з тексту
+          const match = centeredText.match(/([+-]?)(\d+(?:\.\d+)?)/);
+
+          if (match) {
+            const sign = match[1];
+            const profitAmount = parseFloat(match[2]);
+
+            // ВИГРАШ: є знак + перед числом
+            if (sign === '+' && profitAmount > 0) {
+              status = 'win';
+              profit = profitAmount;
+              break;
+            }
+
+            // ПРОГРАШ: число 0 без знаку + або є мінус
+            if ((sign === '' && profitAmount === 0) || sign === '-') {
+              status = 'loss';
+              profit = -amount;
+              break;
+            }
+          }
+
+          // Додаткова перевірка за кольором
+          if (color.includes('0, 255') || color.includes('green')) {
             status = 'win';
-            const profitText = centeredText.replace(/[^\d.-]/g, '');
-            profit = parseFloat(profitText) || (amount * 0.92);
+            profit = amount * 0.92;
             break;
           }
 
-          // Програш - червоний колір або -
-          if (centeredText.includes('-') || color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
+          if (color.includes('255, 68') || color.includes('255, 0, 0') || color.includes('red')) {
             status = 'loss';
             profit = -amount;
             break;
           }
         }
 
-        // Fallback до старого методу якщо не знайшли через .centered
-        if (status === 'unknown') {
-          const priceUp = item.querySelector('.price-up, [class*="price-up"]');
-          const priceDown = item.querySelector('.price-down, [class*="price-down"]');
-
-          if (priceUp) {
-            status = 'win';
-            const profitText = priceUp.textContent.trim().replace(/[^\d.-]/g, '');
-            profit = parseFloat(profitText) || (amount * 0.92);
-          } else if (priceDown) {
-            status = 'loss';
-            profit = -amount;
-          }
-        }
+        // Якщо все ще не визначили - пропускаємо (не використовуємо price-up/down)
 
         // Додаємо угоду
         if (status !== 'unknown') {
