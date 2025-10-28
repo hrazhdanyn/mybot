@@ -651,21 +651,8 @@
       <div class="section-title">💰 Налаштування ставок</div>
 
       <div class="input-group">
-        <label>Тип ставки</label>
-        <select id="stakeType">
-          <option value="fixed">Фіксована сума (₴)</option>
-          <option value="percent">Відсоток від депозиту (%)</option>
-        </select>
-      </div>
-
-      <div class="input-group" id="fixedAmountGroup">
-        <label>Фіксована сума (₴)</label>
+        <label>Початкова сума (₴)</label>
         <input type="number" id="initialAmount" value="100" min="50" step="10">
-      </div>
-
-      <div class="input-group" id="percentAmountGroup" style="display: none;">
-        <label>Відсоток від депозиту (%)</label>
-        <input type="number" id="percentAmount" value="1" min="0.01" max="100" step="0.1">
       </div>
 
       <div class="input-group">
@@ -707,13 +694,8 @@
       </div>
 
       <div class="input-group">
-        <label>Множник для фіксованої суми</label>
+        <label>Множник мартингейлу</label>
         <input type="number" id="martingaleMultiplier" value="2.3" min="1.1" step="0.1">
-      </div>
-
-      <div class="input-group">
-        <label>Множник для відсотка</label>
-        <input type="number" id="martingaleMultiplierPercent" value="2.0" min="1.1" step="0.1">
       </div>
 
       <!-- Поточний стан мартингейлу -->

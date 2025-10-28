@@ -40,12 +40,9 @@ function setupTabs() {
 async function loadSettings() {
   const settings = await chrome.storage.local.get([
     'initialAmount',
-    'percentAmount',
-    'stakeType',
     'defaultTimeframe',
     'maxMartingale',
     'martingaleMultiplier',
-    'martingaleMultiplierPercent',
     'globalMartingaleLevel',
     'pairLosses',
     'botActive'
@@ -53,21 +50,6 @@ async function loadSettings() {
 
   if (settings.initialAmount) {
     document.getElementById('initialAmount').value = settings.initialAmount;
-  }
-  if (settings.percentAmount) {
-    document.getElementById('percentAmount').value = settings.percentAmount;
-  }
-  if (settings.stakeType) {
-    document.getElementById('stakeType').value = settings.stakeType;
-    const fixedGroup = document.getElementById('fixedAmountGroup');
-    const percentGroup = document.getElementById('percentAmountGroup');
-    if (settings.stakeType === 'fixed') {
-      fixedGroup.style.display = 'block';
-      percentGroup.style.display = 'none';
-    } else {
-      fixedGroup.style.display = 'none';
-      percentGroup.style.display = 'block';
-    }
   }
   if (settings.defaultTimeframe) {
     document.getElementById('defaultTimeframe').value = settings.defaultTimeframe;
@@ -77,9 +59,6 @@ async function loadSettings() {
   }
   if (settings.martingaleMultiplier) {
     document.getElementById('martingaleMultiplier').value = settings.martingaleMultiplier;
-  }
-  if (settings.martingaleMultiplierPercent) {
-    document.getElementById('martingaleMultiplierPercent').value = settings.martingaleMultiplierPercent;
   }
 
   // Оновити відображення стану мартингейлу
@@ -266,12 +245,10 @@ function setupEventListeners() {
 async function saveSettings() {
   const settings = {
     initialAmount: parseFloat(document.getElementById('initialAmount').value),
-    percentAmount: parseFloat(document.getElementById('percentAmount').value),
-    stakeType: document.getElementById('stakeType').value,
+    stakeType: 'fixed', // Завжди використовуємо фіксовану суму
     defaultTimeframe: parseInt(document.getElementById('defaultTimeframe').value),
     maxMartingale: parseInt(document.getElementById('maxMartingale').value),
-    martingaleMultiplier: parseFloat(document.getElementById('martingaleMultiplier').value),
-    martingaleMultiplierPercent: parseFloat(document.getElementById('martingaleMultiplierPercent').value)
+    martingaleMultiplier: parseFloat(document.getElementById('martingaleMultiplier').value)
   };
 
   await chrome.storage.local.set(settings);

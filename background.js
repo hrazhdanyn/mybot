@@ -105,19 +105,26 @@ async function startBot() {
     checkInterval = setInterval(checkScheduledTrades, 5000);
     await addLog('⏰ Запущено таймер перевірки угод (кожні 5 сек)', 'info');
   }
+
+  // Встановлюємо статус бота як активний
+  await chrome.storage.local.set({ botActive: true });
+  await addLog('✅ Бот готовий до роботи', 'success');
 }
 
 // Зупинка бота
 async function stopBot() {
   await addLog('⏹️ Бот зупинено', 'warning');
   console.log('Bot stopped');
-  
+
   if (checkInterval) {
     clearInterval(checkInterval);
     checkInterval = null;
   }
-  
+
   scheduledTrades = [];
+
+  // Встановлюємо статус бота як неактивний
+  await chrome.storage.local.set({ botActive: false });
 }
 
 // Обробка сигналу
@@ -126,12 +133,9 @@ async function processSignal(signal) {
   await addLog(`📥 Отримано сигнал: ${signal.pair} ${signal.direction}`, 'info');
 
   const settings = await chrome.storage.local.get([
-    'stakeType',
     'initialAmount',
-    'percentAmount',
     'maxMartingale',
     'martingaleMultiplier',
-    'martingaleMultiplierPercent',
     'botActive',
     'globalMartingaleLevel'
   ]);
@@ -158,31 +162,22 @@ async function processSignal(signal) {
 
   // Визначаємо базову ставку або використовуємо поточний глобальний рівень
   const globalLevel = settings.globalMartingaleLevel || 1;
-  let baseAmount;
-
-  if (settings.stakeType === 'percent') {
-    baseAmount = settings.percentAmount || 1;
-    await addLog(`💰 Тип ставки: ${baseAmount}% від депозиту`, 'info');
-  } else {
-    baseAmount = settings.initialAmount || 100;
-    await addLog(`💰 Тип ставки: ${baseAmount} ₴ (фіксована)`, 'info');
-  }
+  const baseAmount = settings.initialAmount || 100;
+  await addLog(`💰 Початкова сума: ${baseAmount} ₴`, 'info');
 
   // Якщо є незавершені пари (globalLevel > 1), починаємо з поточного рівня
   let tradeAmount = baseAmount;
   let martingaleLevel = 0;
 
   if (globalLevel > 1) {
-    const multiplier = settings.stakeType === 'percent'
-      ? settings.martingaleMultiplierPercent || 2.0
-      : settings.martingaleMultiplier || 2.3;
+    const multiplier = settings.martingaleMultiplier || 2.3;
 
     // Віднімаємо 1 тому що globalLevel вже вказує на НАСТУПНИЙ рівень
     martingaleLevel = globalLevel - 1;
     tradeAmount = baseAmount * Math.pow(multiplier, martingaleLevel);
 
     await addLog(`🔄 Продовження мартингейлу: рівень ${globalLevel} (після попередніх програшів)`, 'warning');
-    await addLog(`💰 Сума з урахуванням мартингейлу: ${tradeAmount.toFixed(2)} ${settings.stakeType === 'percent' ? '%' : '₴'}`, 'info');
+    await addLog(`💰 Сума з урахуванням мартингейлу: ${tradeAmount.toFixed(2)} ₴`, 'info');
   }
 
   const trade = {
@@ -327,10 +322,7 @@ async function handleTradeResult(result) {
   const settings = await chrome.storage.local.get([
     'maxMartingale',
     'martingaleMultiplier',
-    'martingaleMultiplierPercent',
     'initialAmount',
-    'percentAmount',
-    'stakeType',
     'globalMartingaleLevel',
     'pairLosses'
   ]);
@@ -404,16 +396,8 @@ async function handleTradeResult(result) {
       await addLog(`🔄 Мартингейл: рівень ${newPairLosses}/4 на парі, глобальний рівень ${globalLevel} → ${newGlobalLevel}`, 'warning');
 
       // Визначаємо базову ставку та множник
-      let baseAmount;
-      if (trade.stakeType === 'percent') {
-        baseAmount = settings.percentAmount || 1;
-      } else {
-        baseAmount = settings.initialAmount || 100;
-      }
-
-      const multiplier = trade.stakeType === 'percent'
-        ? settings.martingaleMultiplierPercent || 2.0
-        : settings.martingaleMultiplier || 2.3;
+      const baseAmount = settings.initialAmount || 100;
+      const multiplier = settings.martingaleMultiplier || 2.3;
 
       const martingaleAmount = baseAmount * Math.pow(multiplier, globalLevel);
 
@@ -424,14 +408,14 @@ async function handleTradeResult(result) {
         direction: trade.direction,
         timeframe: trade.timeframe,
         amount: martingaleAmount,
-        stakeType: trade.stakeType,
+        stakeType: 'fixed',
         entryTime: { hours: new Date().getHours(), minutes: new Date().getMinutes() },
         martingaleLevel: globalLevel,
         status: 'scheduled',
         pairKey: pairKey
       };
 
-      await addLog(`   💰 Сума: ${martingaleAmount.toFixed(2)} ${trade.stakeType === 'percent' ? '%' : '₴'}`, 'info');
+      await addLog(`   💰 Сума: ${martingaleAmount.toFixed(2)} ₴`, 'info');
       await addLog(`   ⚡ Відкриваємо ЗАРАЗ (без очікування сигналу)`, 'info');
 
       scheduledTrades.push(martingaleTrade);
@@ -571,11 +555,9 @@ chrome.runtime.onInstalled.addListener(() => {
     botActive: false,
     stakeType: 'fixed',
     initialAmount: 100,
-    percentAmount: 1,
     defaultTimeframe: 5,
     maxMartingale: 15,  // Максимальний глобальний рівень
     martingaleMultiplier: 2.3,
-    martingaleMultiplierPercent: 2.0,
     globalMartingaleLevel: 1,  // Починаємо з рівня 1
     pairLosses: {},
     trades: [],
