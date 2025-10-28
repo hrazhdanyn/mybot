@@ -32,7 +32,7 @@ function startTradeMonitoring(trade) {
       // ФАЗА 1: Очікуємо закінчення таймфрейму
       if (timeLeft > 10) {
         if (checks % 10 === 0) { // Логуємо кожні 30 сек
-          await addLog(`⏳ Очікування ${Math.round(timeLeft / 60)} хв ${timeLeft % 60} сек...`, 'info');
+          await addLog(`⏳ Очікування ${Math.floor(timeLeft / 60)} хв ${timeLeft % 60} сек...`, 'info');
         }
         return;
       }

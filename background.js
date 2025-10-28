@@ -493,6 +493,7 @@ async function addToActiveTrades(trade) {
     id: trade.id,
     pair: trade.pair,
     direction: trade.direction,
+    timeframe: trade.timeframe, // ВАЖЛИВО: зберігаємо timeframe для мартингейлу
     amount: trade.amount,
     stakeType: trade.stakeType || 'fixed',
     time: `${String(trade.entryTime.hours).padStart(2, '0')}:${String(trade.entryTime.minutes).padStart(2, '0')}`,
