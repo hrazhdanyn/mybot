@@ -110,36 +110,41 @@ async function checkAndSetStakeType(requiredType) {
 
 async function selectAsset(pair) {
   const currentSymbol = document.querySelector('.current-symbol, .current-symbol_cropped');
-  
+
   if (!currentSymbol) {
     await addLog(`   ❌ current-symbol не знайдено`, 'error');
     return false;
   }
-  
+
   const currentText = currentSymbol.textContent.trim();
   const cleanPair = pair.replace('/', '');
-  
+
+  await addLog(`   🔍 Поточна пара: "${currentText}", потрібна: "${pair}"`, 'info');
+
   if (currentText.includes(cleanPair)) {
     await addLog(`   ✅ Вже вибрана`, 'success');
     return true;
   }
-  
+
+  await addLog(`   🔄 Відкриваю список пар...`, 'info');
   currentSymbol.click();
   await wait(800);
-  
+
   const labels = document.querySelectorAll('.alist__label');
-  
+  await addLog(`   📋 Знайдено ${labels.length} пар в списку`, 'info');
+
   for (const label of labels) {
     const text = label.textContent.trim();
-    
+
     if (text.includes(cleanPair) || text.includes(pair)) {
-      await addLog(`   ✅ Клік на "${text}"`, 'success');
+      await addLog(`   ✅ Знайдено "${text}" - клікаю`, 'success');
       label.click();
       await wait(500);
       return true;
     }
   }
-  
+
+  await addLog(`   ❌ Пару "${pair}" не знайдено в списку`, 'error');
   return false;
 }
 

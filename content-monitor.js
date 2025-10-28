@@ -218,27 +218,41 @@ async function findAndCheckInClosed(tradeInfo) {
       const upperText = text.toUpperCase();
       const direction = tradeInfo.direction.toUpperCase();
       
-      // КРОК 4: Перевірка результату - шукаємо .centered
-      // ВИГРАШ: class="centered price-up" (має клас price-up)
-      // ПРОГРАШ: class="centered" (просто centered, без price-up)
-      const centeredElements = nextElement.querySelectorAll('.centered');
+      // КРОК 4: Перевірка результату - шукаємо Profit
+      // Profit > 0 = ВИГРАШ, Profit = 0 або < 0 = ПРОГРАШ
+      const allText = nextElement.textContent;
 
+      // Шукаємо значення Profit (може бути +92$, 0$, -100$ тощо)
+      const profitMatch = allText.match(/Profit[:\s]*([+-]?\$?\s*\d+(?:\.\d+)?)/i);
+
+      if (profitMatch) {
+        const profitStr = profitMatch[1].trim();
+        const profitValue = parseFloat(profitStr.replace(/[$\s]/g, ''));
+
+        await addLog(`      Знайдено Profit: "${profitStr}" (${profitValue})`, 'info');
+
+        if (profitValue > 0) {
+          await addLog(`   ✅ ВИГРАШ: Profit = ${profitValue}`, 'success');
+          return true;
+        } else {
+          await addLog(`   ❌ ПРОГРАШ: Profit = ${profitValue}`, 'error');
+          return false;
+        }
+      }
+
+      // Альтернативний пошук: шукаємо .centered з price-up/price-down як fallback
+      const centeredElements = nextElement.querySelectorAll('.centered');
       for (const centered of centeredElements) {
         const text = centered.textContent.trim();
         const classList = centered.classList;
 
-        await addLog(`      Перевіряю centered: "${text}", класи: ${Array.from(classList).join(' ')}`, 'info');
-
-        // ВИГРАШ: якщо елемент має клас "price-up"
-        if (classList.contains('price-up')) {
-          await addLog(`   ✅ ВИГРАШ: ${text} (клас price-up)`, 'success');
+        if (classList.contains('price-up') && text.match(/[+$]/)) {
+          await addLog(`   ✅ ВИГРАШ (fallback): ${text}`, 'success');
           return true;
         }
 
-        // ПРОГРАШ: якщо є число (включно з 0) але НЕМАЄ класу "price-up"
-        const match = text.match(/\d+/);
-        if (match && !classList.contains('price-up')) {
-          await addLog(`   ❌ ПРОГРАШ: ${text} (немає класу price-up)`, 'error');
+        if (text.match(/^0[\$\s]/)) {
+          await addLog(`   ❌ ПРОГРАШ (fallback): ${text}`, 'error');
           return false;
         }
       }
@@ -263,23 +277,18 @@ async function findAndCheckInClosed(tradeInfo) {
         continue;
       }
 
-      // Шукаємо .centered елементи
-      const centeredElements = deal.querySelectorAll('.centered');
+      // Шукаємо Profit
+      const profitMatch = text.match(/Profit[:\s]*([+-]?\$?\s*\d+(?:\.\d+)?)/i);
 
-      for (const centered of centeredElements) {
-        const centeredText = centered.textContent.trim();
-        const classList = centered.classList;
+      if (profitMatch) {
+        const profitStr = profitMatch[1].trim();
+        const profitValue = parseFloat(profitStr.replace(/[$\s]/g, ''));
 
-        // ВИГРАШ: якщо елемент має клас "price-up"
-        if (classList.contains('price-up')) {
-          await addLog(`   [${i}] ✅ ВИГРАШ: ${centeredText} (клас price-up)`, 'success');
+        if (profitValue > 0) {
+          await addLog(`   [${i}] ✅ ВИГРАШ: Profit = ${profitValue}`, 'success');
           return true;
-        }
-
-        // ПРОГРАШ: якщо є число але НЕМАЄ класу "price-up"
-        const match = centeredText.match(/\d+/);
-        if (match && !classList.contains('price-up')) {
-          await addLog(`   [${i}] ❌ ПРОГРАШ: ${centeredText} (немає класу price-up)`, 'error');
+        } else {
+          await addLog(`   [${i}] ❌ ПРОГРАШ: Profit = ${profitValue}`, 'error');
           return false;
         }
       }
@@ -355,36 +364,27 @@ async function fetchClosedTradesFromSite() {
           direction = 'PUT';
         }
 
-        // Визначаємо результат (виграш/програш) через .centered
-        // centered показує ПРИБУТОК: "+92$" (виграш) або "0$" (програш)
-        const centeredElements = item.querySelectorAll('.centered');
-
+        // Визначаємо результат через Profit
+        // Profit > 0 = ВИГРАШ, Profit = 0 або < 0 = ПРОГРАШ
         let status = 'unknown';
         let profit = 0;
 
-        for (const centered of centeredElements) {
-          const centeredText = centered.textContent.trim();
-          const classList = centered.classList;
+        const profitMatch = text.match(/Profit[:\s]*([+-]?\$?\s*\d+(?:\.\d+)?)/i);
 
-          // ВИГРАШ: якщо елемент має клас "price-up"
-          if (classList.contains('price-up')) {
+        if (profitMatch) {
+          const profitStr = profitMatch[1].trim();
+          const profitValue = parseFloat(profitStr.replace(/[$\s]/g, ''));
+
+          if (profitValue > 0) {
             status = 'win';
-            // Витягуємо суму прибутку з тексту
-            const profitMatch = centeredText.match(/(\d+(?:\.\d+)?)/);
-            profit = profitMatch ? parseFloat(profitMatch[1]) : amount * 0.92;
-            break;
-          }
-
-          // ПРОГРАШ: якщо є число але НЕМАЄ класу "price-up"
-          const match = centeredText.match(/\d+/);
-          if (match && !classList.contains('price-up')) {
+            profit = profitValue;
+          } else {
             status = 'loss';
             profit = -amount;
-            break;
           }
         }
 
-        // Якщо все ще не визначили - пропускаємо
+        // Якщо не знайшли Profit - пропускаємо
 
         // Додаємо угоду
         if (status !== 'unknown') {

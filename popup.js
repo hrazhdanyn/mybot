@@ -281,7 +281,7 @@ async function sendTestSignal() {
   const timeframeMinutes = settings.defaultTimeframe || 5;
 
   const now = new Date();
-  const entryTime = new Date(now.getTime() + 2 * 60000); // Через 2 хвилини
+  const entryTime = new Date(now.getTime() + 1 * 60000); // Через 1 хвилину
 
   // Форматуємо таймфрейм
   let timeframeStr = `${timeframeMinutes}M`;
@@ -289,9 +289,17 @@ async function sendTestSignal() {
     timeframeStr = `${Math.floor(timeframeMinutes / 60)}H`;
   }
 
+  // Рандомні пари
+  const pairs = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'EUR/GBP', 'EUR/JPY'];
+  const randomPair = pairs[Math.floor(Math.random() * pairs.length)];
+
+  // Рандомний напрямок
+  const directions = ['CALL', 'PUT'];
+  const randomDirection = directions[Math.floor(Math.random() * directions.length)];
+
   const testSignal = {
-    pair: 'EUR/USD',
-    direction: 'CALL',
+    pair: randomPair,
+    direction: randomDirection,
     timeframe: timeframeStr,
     entryTime: formatTime(entryTime),
     martingaleLevels: [
@@ -307,8 +315,8 @@ async function sendTestSignal() {
     signal: testSignal
   });
 
-  addLog(`Тестовий сигнал відправлено! Таймфрейм: ${timeframeStr}, угода о ${testSignal.entryTime}`, 'info');
-  alert(`Тестовий сигнал відправлено!\nТаймфрейм: ${timeframeStr}\nУгода буде відкрита о ${testSignal.entryTime}`);
+  addLog(`Тестовий сигнал відправлено! ${randomPair} ${randomDirection}, таймфрейм: ${timeframeStr}, угода о ${testSignal.entryTime}`, 'info');
+  alert(`Тестовий сигнал відправлено!\nПара: ${randomPair}\nНапрямок: ${randomDirection}\nТаймфрейм: ${timeframeStr}\nУгода буде відкрита о ${testSignal.entryTime}`);
 }
 
 // Оновлення закритих угод з сайту
