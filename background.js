@@ -143,10 +143,14 @@ async function processSignal(signal) {
   console.log('Bot settings:', settings);
   await addLog(`⚙️ Бот активний: ${settings.botActive}`, 'info');
 
-  if (!settings.botActive) {
+  if (!settings.botActive && !signal.isTestSignal) {
     await addLog('⚠️ Бот не активний! Сигнал проігноровано', 'warning');
     console.log('Bot is not active, ignoring signal');
     return;
+  }
+
+  if (signal.isTestSignal) {
+    await addLog(`🧪 ТЕСТОВИЙ СИГНАЛ - обробляється навіть якщо бот не активний`, 'info');
   }
 
   // Конвертація часу
@@ -197,11 +201,20 @@ async function processSignal(signal) {
   scheduledTrades.push(trade);
   await addLog(`✅ Угоду заплановано на ${formatTimeString(entryTimeKyiv)}`, 'success');
   await addLog(`📊 Всього запланованих угод: ${scheduledTrades.length}`, 'info');
+  await addLog(`🔧 DEBUG: scheduledTrades array = ${JSON.stringify(scheduledTrades.map(t => ({ pair: t.pair, time: formatTimeString(t.entryTime) })))}`, 'info');
 
   await addToActiveTrades(trade);
   await updateScheduledTradesInStorage();
 
+  // Автоматично запускаємо checkInterval якщо він не запущений
+  if (!checkInterval) {
+    await addLog(`⚠️ checkInterval не запущений! Запускаю автоматично...`, 'warning');
+    checkInterval = setInterval(checkScheduledTrades, 5000);
+    await addLog(`✅ checkInterval запущено (кожні 5 сек)`, 'success');
+  }
+
   console.log('Signal processed:', trade);
+  console.log('Scheduled trades after adding:', scheduledTrades);
 }
 
 // Перевірка запланованих угод
@@ -210,20 +223,19 @@ async function checkScheduledTrades() {
   if (!checkScheduledTrades.counter) checkScheduledTrades.counter = 0;
   checkScheduledTrades.counter++;
 
+  const now = new Date();
+  const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
   if (scheduledTrades.length === 0) {
     if (checkScheduledTrades.counter % 10 === 0) {
-      const now = new Date();
-      const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       await addLog(`🔍 Перевірка: час ${currentTimeStr}, запланованих угод: 0`, 'info');
     }
     return;
   }
 
-  const now = new Date();
-  const currentTime = now.getHours() * 60 + now.getMinutes();
-  const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  await addLog(`🔍 DEBUG: checkInterval працює! Час ${currentTimeStr}, угод: ${scheduledTrades.length}`, 'info');
 
-  await addLog(`🔍 Перевірка угод. Поточний час: ${currentTimeStr}, Запланованих: ${scheduledTrades.length}`, 'info');
+  const currentTime = now.getHours() * 60 + now.getMinutes();
 
   for (let i = scheduledTrades.length - 1; i >= 0; i--) {
     const trade = scheduledTrades[i];
