@@ -203,12 +203,9 @@ function createClosedTradeHTML(trade) {
 function setupEventListeners() {
   // Збереження налаштувань при зміні
   document.getElementById('initialAmount').addEventListener('change', saveSettings);
-  document.getElementById('percentAmount').addEventListener('change', saveSettings);
-  document.getElementById('stakeType').addEventListener('change', saveSettings);
   document.getElementById('defaultTimeframe').addEventListener('change', saveSettings);
   document.getElementById('maxMartingale').addEventListener('change', saveSettings);
   document.getElementById('martingaleMultiplier').addEventListener('change', saveSettings);
-  document.getElementById('martingaleMultiplierPercent').addEventListener('change', saveSettings);
 
   // Запуск/зупинка бота
   document.getElementById('startBot').addEventListener('click', startBot);
