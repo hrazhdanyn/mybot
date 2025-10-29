@@ -56,12 +56,19 @@ async function openTrade(trade) {
       await addLog(`═══════════════════════════════════`, 'success');
       await addLog(`✅ УГОДА ВІДКРИТА!`, 'success');
       await addLog(`═══════════════════════════════════`, 'success');
-      
+
       currentTrade = { ...trade, openTime: Date.now() };
       startTradeMonitoring(trade);
     } else {
-      await addLog(`❌ НЕ ВДАЛОСЯ ВІДКРИТИ`, 'error');
-      notifyTradeResult(trade, false);
+      await addLog(`❌ НЕ ВДАЛОСЯ ВІДКРИТИ (технічна помилка)`, 'error');
+      await addLog(`🚫 Мартингейл НЕ спрацює - це не програш угоди`, 'warning');
+
+      // Відправляємо повідомлення про технічну помилку (НЕ програш!)
+      chrome.runtime.sendMessage({
+        action: 'tradeFailed',
+        tradeId: trade.id,
+        reason: 'Не вдалося відкрити угоду (кнопка не знайдена)'
+      });
     }
     
   } catch (error) {
@@ -401,38 +408,58 @@ async function clickTradeButton(direction) {
   const isBuy = direction === 'CALL' || direction === 'BUY';
   const searchText = isBuy ? 'BUY' : 'SELL';
 
+  await addLog(`   🔍 Пошук кнопки "${searchText}"...`, 'info');
+
+  // СПОСІБ 1: Пошук в switch-state-block__item
   const switchItems = document.querySelectorAll('span.switch-state-block__item');
+  await addLog(`   📋 Знайдено ${switchItems.length} switch-state-block__item`, 'info');
 
   for (const item of switchItems) {
     const text = item.textContent.trim().toUpperCase();
-
     if (text === searchText) {
-      await addLog(`   ✅ ${searchText}`, 'success');
+      await addLog(`   ✅ ${searchText} (switch-state-block)`, 'success');
       item.click();
       await wait(500);
       return true;
     }
   }
 
+  // СПОСІБ 2: Пошук кнопок
+  const buttons = document.querySelectorAll('button, [role="button"]');
+  await addLog(`   📋 Знайдено ${buttons.length} кнопок`, 'info');
+
+  for (const button of buttons) {
+    const text = button.textContent.trim().toUpperCase();
+    const rect = button.getBoundingClientRect();
+    const styles = window.getComputedStyle(button);
+
+    if (text === searchText && styles.display !== 'none' && rect.width > 0 && rect.height > 0) {
+      await addLog(`   ✅ ${searchText} (button)`, 'success');
+      button.click();
+      await wait(500);
+      return true;
+    }
+  }
+
+  // СПОСІБ 3: Пошук всіх span
   const allSpans = document.querySelectorAll('span');
+  await addLog(`   📋 Пошук серед ${allSpans.length} span елементів...`, 'info');
 
   for (const span of allSpans) {
     const text = span.textContent.trim().toUpperCase();
+    const rect = span.getBoundingClientRect();
+    const styles = window.getComputedStyle(span);
 
-    if (text === searchText) {
-      const rect = span.getBoundingClientRect();
-      const styles = window.getComputedStyle(span);
-
-      if (styles.display !== 'none' && rect.width > 0) {
-        await addLog(`   ✅ ${searchText} (span)`, 'success');
-        span.click();
-        await wait(500);
-        return true;
-      }
+    if (text === searchText && styles.display !== 'none' && rect.width > 0 && rect.height > 0) {
+      await addLog(`   ✅ ${searchText} (span, ${rect.width.toFixed(0)}x${rect.height.toFixed(0)}px)`, 'success');
+      span.click();
+      await wait(500);
+      return true;
     }
   }
 
   await addLog(`   ❌ ${searchText} не знайдено`, 'error');
+  await addLog(`   💡 Спробуйте перевірити що сторінка повністю завантажена`, 'warning');
   return false;
 }
 

@@ -35,6 +35,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     processSignal(message.signal);
   } else if (message.action === 'tradeResult') {
     handleTradeResult(message.result);
+  } else if (message.action === 'tradeFailed') {
+    handleTradeFailed(message.tradeId, message.reason);
   } else if (message.action === 'cancelTrade') {
     cancelTrade(message.tradeId);
   }
@@ -324,6 +326,21 @@ async function executeTrade(trade) {
     await addLog(`💡 Спробуйте перезавантажити сторінку PocketOption (Ctrl+Shift+R)`, 'warning');
     console.error('Error sending message:', error);
   }
+}
+
+// Обробка технічної помилки (угода не відкрилась)
+async function handleTradeFailed(tradeId, reason) {
+  await addLog(`🚫 ТЕХНІЧНА ПОМИЛКА: ${reason}`, 'error');
+  await addLog(`⚠️ Угода не відкрилась - мартингейл НЕ спрацює`, 'warning');
+
+  // Просто видаляємо угоду з активних без мартингейлу
+  await removeFromActiveTrades(tradeId);
+
+  // Видаляємо зі scheduledTrades якщо є
+  scheduledTrades = scheduledTrades.filter(t => t.id !== tradeId);
+  await updateScheduledTradesInStorage();
+
+  await addLog(`✅ Угода видалена. Очікуємо наступну спробу`, 'info');
 }
 
 // Обробка результату угоди
