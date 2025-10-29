@@ -1,0 +1,22 @@
+{
+  "name": "pocketoption-bot-webhook",
+  "version": "2.0.0",
+  "description": "Webhook server для PocketOption Trading Bot",
+  "main": "webhook-server.js",
+  "scripts": {
+    "start": "node webhook-server.js",
+    "dev": "nodemon webhook-server.js",
+    "test": "curl -X POST http://localhost:8765/webhook -H 'Content-Type: application/json' -d '{\"pair\":\"EUR/USD\",\"direction\":\"CALL\",\"timeframe\":\"1M\"}'"
+  },
+  "keywords": [
+    "pocketoption",
+    "trading",
+    "bot",
+    "webhook"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  }
+}

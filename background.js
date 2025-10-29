@@ -1,6 +1,10 @@
 // Глобальні змінні
 let scheduledTrades = [];
 let checkInterval = null;
+let webhookInterval = null;
+let lastProcessedSignalId = null;
+
+const WEBHOOK_SERVER_URL = 'http://localhost:8765';
 
 // Функція для логування
 async function addLog(message, type = 'info') {
@@ -108,6 +112,12 @@ async function startBot() {
     await addLog('⏰ Запущено таймер перевірки угод (кожні 5 сек)', 'info');
   }
 
+  // Запускаємо перевірку вебхуків кожні 10 секунд
+  if (!webhookInterval) {
+    webhookInterval = setInterval(checkWebhookSignals, 10000);
+    await addLog('📡 Запущено перевірку вебхуків (кожні 10 сек)', 'info');
+  }
+
   // Встановлюємо статус бота як активний
   await chrome.storage.local.set({ botActive: true });
   await addLog('✅ Бот готовий до роботи', 'success');
@@ -123,10 +133,55 @@ async function stopBot() {
     checkInterval = null;
   }
 
+  if (webhookInterval) {
+    clearInterval(webhookInterval);
+    webhookInterval = null;
+  }
+
   scheduledTrades = [];
 
   // Встановлюємо статус бота як неактивний
   await chrome.storage.local.set({ botActive: false });
+}
+
+// Перевірка нових сигналів з webhook сервера
+async function checkWebhookSignals() {
+  try {
+    const response = await fetch(`${WEBHOOK_SERVER_URL}/signals`);
+
+    if (!response.ok) {
+      // Сервер недоступний - нічого не робимо
+      return;
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.signals && data.signals.length > 0) {
+      // Обробляємо тільки нові сигнали
+      for (const signal of data.signals) {
+        if (signal.id === lastProcessedSignalId) {
+          // Дійшли до останнього обробленого - зупиняємось
+          break;
+        }
+
+        // Обробляємо новий сигнал
+        await addLog(`📡 WEBHOOK: Отримано сигнал ${signal.pair} ${signal.direction}`, 'info');
+        await processSignal({
+          ...signal,
+          isTestSignal: false,
+          fromWebhook: true
+        });
+      }
+
+      // Запам'ятовуємо ID останнього обробленого сигналу
+      if (data.signals.length > 0) {
+        lastProcessedSignalId = data.signals[0].id;
+      }
+    }
+  } catch (error) {
+    // Помилку не логуємо, щоб не засмічувати лог якщо сервер не запущений
+    console.log('Webhook server not available:', error.message);
+  }
 }
 
 // Обробка сигналу
