@@ -50,6 +50,7 @@ async function openTrade(trade) {
     
     // КРОК 4: Відкриття
     await addLog(`📍 КРОК 4: ${trade.direction}`, 'info');
+    await wait(1500); // Додаємо затримку щоб DOM встиг оновитися
     const success = await clickTradeButton(trade.direction);
     
     if (success) {
@@ -408,16 +409,29 @@ async function clickTradeButton(direction) {
   const isBuy = direction === 'CALL' || direction === 'BUY';
   const searchText = isBuy ? 'BUY' : 'SELL';
 
-  await addLog(`   🔍 Пошук кнопки "${searchText}"...`, 'info');
+  // Альтернативні варіанти тексту для кнопок
+  const alternativeTexts = isBuy
+    ? ['BUY', 'UP', '↑', 'КУПИТИ', 'ВГОРУ', 'CALL']
+    : ['SELL', 'DOWN', '↓', 'ПРОДАТИ', 'ВНИЗ', 'PUT'];
+
+  await addLog(`   🔍 Пошук кнопки "${searchText}" (або ${alternativeTexts.join(', ')})...`, 'info');
 
   // СПОСІБ 1: Пошук в switch-state-block__item
   const switchItems = document.querySelectorAll('span.switch-state-block__item');
   await addLog(`   📋 Знайдено ${switchItems.length} switch-state-block__item`, 'info');
 
+  // Логуємо що саме міститься в кожному елементі
+  for (let i = 0; i < switchItems.length; i++) {
+    const item = switchItems[i];
+    const text = item.textContent.trim();
+    const rect = item.getBoundingClientRect();
+    await addLog(`   🔍 [${i}] Текст: "${text}", Розмір: ${rect.width.toFixed(0)}x${rect.height.toFixed(0)}px`, 'info');
+  }
+
   for (const item of switchItems) {
     const text = item.textContent.trim().toUpperCase();
-    if (text === searchText) {
-      await addLog(`   ✅ ${searchText} (switch-state-block)`, 'success');
+    if (alternativeTexts.includes(text)) {
+      await addLog(`   ✅ Знайдено "${text}" (switch-state-block)`, 'success');
       item.click();
       await wait(500);
       return true;
@@ -428,13 +442,26 @@ async function clickTradeButton(direction) {
   const buttons = document.querySelectorAll('button, [role="button"]');
   await addLog(`   📋 Знайдено ${buttons.length} кнопок`, 'info');
 
+  // Логуємо перші 10 видимих кнопок
+  let visibleButtonCount = 0;
+  for (const button of buttons) {
+    const text = button.textContent.trim();
+    const rect = button.getBoundingClientRect();
+    const styles = window.getComputedStyle(button);
+
+    if (styles.display !== 'none' && rect.width > 0 && rect.height > 0 && visibleButtonCount < 10) {
+      await addLog(`   🔍 Button[${visibleButtonCount}]: "${text.substring(0, 50)}"`, 'info');
+      visibleButtonCount++;
+    }
+  }
+
   for (const button of buttons) {
     const text = button.textContent.trim().toUpperCase();
     const rect = button.getBoundingClientRect();
     const styles = window.getComputedStyle(button);
 
-    if (text === searchText && styles.display !== 'none' && rect.width > 0 && rect.height > 0) {
-      await addLog(`   ✅ ${searchText} (button)`, 'success');
+    if (alternativeTexts.includes(text) && styles.display !== 'none' && rect.width > 0 && rect.height > 0) {
+      await addLog(`   ✅ Знайдено "${text}" (button)`, 'success');
       button.click();
       await wait(500);
       return true;
@@ -450,15 +477,15 @@ async function clickTradeButton(direction) {
     const rect = span.getBoundingClientRect();
     const styles = window.getComputedStyle(span);
 
-    if (text === searchText && styles.display !== 'none' && rect.width > 0 && rect.height > 0) {
-      await addLog(`   ✅ ${searchText} (span, ${rect.width.toFixed(0)}x${rect.height.toFixed(0)}px)`, 'success');
+    if (alternativeTexts.includes(text) && styles.display !== 'none' && rect.width > 0 && rect.height > 0) {
+      await addLog(`   ✅ Знайдено "${text}" (span, ${rect.width.toFixed(0)}x${rect.height.toFixed(0)}px)`, 'success');
       span.click();
       await wait(500);
       return true;
     }
   }
 
-  await addLog(`   ❌ ${searchText} не знайдено`, 'error');
+  await addLog(`   ❌ Жодного варіанту не знайдено: ${alternativeTexts.join(', ')}`, 'error');
   await addLog(`   💡 Спробуйте перевірити що сторінка повністю завантажена`, 'warning');
   return false;
 }
